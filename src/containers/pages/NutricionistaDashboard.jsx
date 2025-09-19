@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { logout } from '../../redux/actions/auth';
 import { patientsAPI } from '../../lib/api';
 import Layout from '../../hocs/layouts/Layout';
@@ -7,6 +8,7 @@ import ProfileSettings from '../../components/profile/ProfileSettings';
 
 function NutricionistaDashboard() {
     const dispatch = useDispatch();
+    const navigate = useNavigate();
     const { user } = useSelector(state => state.auth);
     const [patients, setPatients] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -199,6 +201,21 @@ function NutricionistaDashboard() {
                 {/* Main Content */}
                 <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
                     <div className="px-4 py-6 sm:px-0">
+                        {/* Quick Actions */}
+                        <div className="mb-8">
+                            <div className="flex flex-wrap gap-4">
+                                <button
+                                    onClick={() => navigate('/formulario/captura')}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
+                                >
+                                    <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Capturar Historia Clínica
+                                </button>
+                            </div>
+                        </div>
+
                         {/* Stats Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                             <div className="bg-white rounded-lg shadow p-6">

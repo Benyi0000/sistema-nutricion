@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Person, Patient, PatientInvitation
+from .models import User, Person, Patient, PatientInvitation, HistoriaClinica, HabitosAlimenticios, IndicadoresDietarios, DatosCalculadora
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -354,3 +354,150 @@ class AcceptInvitationSerializer(serializers.Serializer):
         
         user = invitation.accept_invitation(password)
         return user
+
+
+# Serializers para el sistema de captura de historia clínica y hábitos alimenticios
+
+class HistoriaClinicaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HistoriaClinica
+        fields = '__all__'
+        read_only_fields = ('patient', 'created_at', 'updated_at')
+
+    def create(self, validated_data):
+        # El patient se asigna desde el contexto de la vista
+        patient = self.context['patient']
+        validated_data['patient'] = patient
+        return super().create(validated_data)
+
+
+class HabitosAlimenticiosSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HabitosAlimenticios
+        fields = '__all__'
+        read_only_fields = ('patient', 'created_at', 'updated_at')
+
+    def create(self, validated_data):
+        # El patient se asigna desde el contexto de la vista
+        patient = self.context['patient']
+        validated_data['patient'] = patient
+        return super().create(validated_data)
+
+
+class IndicadoresDietariosSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IndicadoresDietarios
+        fields = '__all__'
+        read_only_fields = ('patient', 'created_at', 'updated_at')
+
+    def create(self, validated_data):
+        # El patient se asigna desde el contexto de la vista
+        patient = self.context['patient']
+        validated_data['patient'] = patient
+        return super().create(validated_data)
+
+
+class DatosCalculadoraSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DatosCalculadora
+        fields = '__all__'
+        read_only_fields = ('patient', 'created_at', 'updated_at')
+
+    def create(self, validated_data):
+        # El patient se asigna desde el contexto de la vista
+        patient = self.context['patient']
+        validated_data['patient'] = patient
+        return super().create(validated_data)
+
+
+# Serializer para el formulario completo de captura
+class FormularioCapturaSerializer(serializers.Serializer):
+    # Datos del paciente (referencia)
+    paciente_ref = serializers.DictField(required=True)
+    
+    # Historia clínica
+    historia_clinica = serializers.DictField(required=True)
+    
+    # Hábitos alimenticios
+    habitos_alimenticios = serializers.DictField(required=True)
+    
+    # Indicadores dietarios
+    indicadores_dietarios = serializers.DictField(required=True)
+    
+    # Datos para calculadora
+    datos_para_calculadora = serializers.DictField(required=True)
+
+    def validate_paciente_ref(self, value):
+        """Validar que se proporcione id_paciente o dni"""
+        if not value.get('id_paciente') and not value.get('dni'):
+            raise serializers.ValidationError("Debe proporcionar id_paciente o dni")
+        return value
+
+    def create(self, validated_data):
+        # Obtener el paciente
+        paciente_ref = validated_data['paciente_ref']
+        paciente = None
+        
+        if paciente_ref.get('id_paciente'):
+            try:
+                paciente = Patient.objects.get(id=paciente_ref['id_paciente'])
+            except Patient.DoesNotExist:
+                raise serializers.ValidationError("Paciente no encontrado")
+        elif paciente_ref.get('dni'):
+            try:
+                user = User.objects.get(dni=paciente_ref['dni'], role='paciente')
+                paciente = user.person.patient
+            except (User.DoesNotExist, AttributeError):
+                raise serializers.ValidationError("Paciente no encontrado con ese DNI")
+
+        # Crear o actualizar historia clínica
+        historia_data = validated_data['historia_clinica']
+        historia, created = HistoriaClinica.objects.get_or_create(
+            patient=paciente,
+            defaults=historia_data
+        )
+        if not created:
+            for key, value in historia_data.items():
+                setattr(historia, key, value)
+            historia.save()
+
+        # Crear o actualizar hábitos alimenticios
+        habitos_data = validated_data['habitos_alimenticios']
+        habitos, created = HabitosAlimenticios.objects.get_or_create(
+            patient=paciente,
+            defaults=habitos_data
+        )
+        if not created:
+            for key, value in habitos_data.items():
+                setattr(habitos, key, value)
+            habitos.save()
+
+        # Crear o actualizar indicadores dietarios
+        indicadores_data = validated_data['indicadores_dietarios']
+        indicadores, created = IndicadoresDietarios.objects.get_or_create(
+            patient=paciente,
+            defaults=indicadores_data
+        )
+        if not created:
+            for key, value in indicadores_data.items():
+                setattr(indicadores, key, value)
+            indicadores.save()
+
+        # Crear o actualizar datos calculadora
+        calculadora_data = validated_data['datos_para_calculadora']
+        calculadora, created = DatosCalculadora.objects.get_or_create(
+            patient=paciente,
+            defaults=calculadora_data
+        )
+        if not created:
+            for key, value in calculadora_data.items():
+                setattr(calculadora, key, value)
+            calculadora.save()
+
+        return {
+            'paciente': paciente,
+            'historia_clinica': historia,
+            'habitos_alimenticios': habitos,
+            'indicadores_dietarios': indicadores,
+            'datos_calculadora': calculadora
+        }

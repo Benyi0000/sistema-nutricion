@@ -12,6 +12,7 @@ import NutricionistaDashboard from './containers/pages/NutricionistaDashboard';
 import PacienteDashboard from './containers/pages/PacienteDashboard';
 import Unauthorized from './containers/pages/Unauthorized';
 import Error404 from './containers/errors/Error404';
+import FormularioCaptura from './containers/pages/FormularioCaptura';
 
 // Components
 import PrivateRoute from './components/auth/PrivateRoute';
@@ -38,6 +39,16 @@ function AppContent() {
           element={
             <PrivateRoute allowedRoles={['nutricionista']}>
               <NutricionistaDashboard />
+            </PrivateRoute>
+          } 
+        />
+        
+        {/* Formulario de captura - Solo para nutricionistas */}
+        <Route 
+          path="/formulario/captura" 
+          element={
+            <PrivateRoute allowedRoles={['nutricionista']}>
+              <FormularioCaptura />
             </PrivateRoute>
           } 
         />

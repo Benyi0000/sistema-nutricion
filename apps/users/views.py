@@ -20,7 +20,12 @@ from .serializers import (
     PasswordResetSerializer,
     PatientInvitationCreateSerializer,
     PatientInvitationSerializer,
-    AcceptInvitationSerializer
+    AcceptInvitationSerializer,
+    HistoriaClinicaSerializer,
+    HabitosAlimenticiosSerializer,
+    IndicadoresDietariosSerializer,
+    DatosCalculadoraSerializer,
+    FormularioCapturaSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -395,3 +400,280 @@ class PatientDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Response({
             'message': f'Paciente {patient_name} desactivado exitosamente'
         }, status=status.HTTP_200_OK)
+
+
+# Vistas para el sistema de captura de historia clínica y hábitos alimenticios
+
+class FormularioCapturaView(APIView):
+    """
+    Vista para capturar el formulario completo de historia clínica y hábitos alimenticios
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role != 'nutricionista':
+            return Response(
+                {'error': 'Solo nutricionistas pueden capturar formularios'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = FormularioCapturaSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                result = serializer.save()
+                
+                # Generar JSON de respuesta según la estructura solicitada
+                response_data = self._generate_response_json(result)
+                
+                return Response({
+                    'message': 'Formulario capturado exitosamente',
+                    'data': response_data,
+                    'resumen': self._generate_resumen_textual(result)
+                }, status=status.HTTP_201_CREATED)
+                
+            except Exception as e:
+                return Response(
+                    {'error': f'Error al procesar el formulario: {str(e)}'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def _generate_response_json(self, result):
+        """Generar el JSON de respuesta según la estructura solicitada"""
+        paciente = result['paciente']
+        historia = result['historia_clinica']
+        habitos = result['habitos_alimenticios']
+        indicadores = result['indicadores_dietarios']
+        calculadora = result['datos_calculadora']
+        
+        return {
+            "paciente_ref": {
+                "id_paciente": paciente.id,
+                "dni": paciente.person.user.dni,
+                "nombre": paciente.person.user.first_name,
+                "apellido": paciente.person.user.last_name,
+                "sexo": "",  # No está en el modelo actual
+                "edad": None  # Se puede calcular desde birth_date
+            },
+            "historia_clinica": {
+                "antecedentes_familiares": historia.antecedentes_familiares,
+                "enfermedades_actuales": historia.enfermedades_actuales,
+                "modifico_dieta": historia.modifico_dieta,
+                "medicacion": {
+                    "usa": historia.medicacion_usa,
+                    "detalle": historia.medicacion_detalle
+                },
+                "cirugias_recientes": {
+                    "tiene": historia.cirugias_tiene,
+                    "detalle": historia.cirugias_detalle
+                }
+            },
+            "habitos_alimenticios": {
+                "comidas_por_dia": habitos.comidas_por_dia,
+                "tiempos": habitos.tiempos_comida,
+                "salta_comidas": {
+                    "si_no": habitos.salta_comidas,
+                    "cuales": habitos.cuales_comidas_salta,
+                    "por_que": habitos.por_que_salta
+                },
+                "con_quien_vive": habitos.con_quien_vive,
+                "quien_cocina": habitos.quien_cocina,
+                "hora_levantarse": habitos.hora_levantarse.strftime("%H:%M") if habitos.hora_levantarse else "",
+                "ingestas_fuera": {
+                    "si_no": habitos.ingestas_fuera,
+                    "que": habitos.que_ingestas_fuera,
+                    "frecuencia": habitos.frecuencia_ingestas_fuera
+                },
+                "intolerancias_alergias": {
+                    "si_no": habitos.intolerancias_alergias,
+                    "lista": habitos.lista_intolerancias
+                },
+                "preferidos": habitos.preferidos,
+                "desagrados": habitos.desagrados,
+                "suplementos": {
+                    "si_no": habitos.suplementos_usa,
+                    "cuales": habitos.cuales_suplementos
+                },
+                "interfiere_emocional": habitos.interfiere_emocional,
+                "agrega_sal": habitos.agrega_sal,
+                "medios_coccion": habitos.medios_coccion,
+                "agua_vasos_dia": habitos.agua_vasos_dia,
+                "bebidas_industriales_vasos_dia": habitos.bebidas_industriales_vasos_dia,
+                "cafe": {
+                    "si_no": habitos.cafe_usa,
+                    "veces_semana": habitos.cafe_veces_semana
+                },
+                "alcohol": {
+                    "si_no": habitos.alcohol_usa,
+                    "frecuencia": habitos.alcohol_frecuencia
+                },
+                "mate_terere": {
+                    "si_no": habitos.mate_terere_usa,
+                    "frecuencia": habitos.mate_terere_frecuencia
+                },
+                "actividad_fisica": {
+                    "si_no": habitos.actividad_fisica_usa,
+                    "tipo": habitos.actividad_fisica_tipo,
+                    "frecuencia": habitos.actividad_fisica_frecuencia,
+                    "duracion_min": habitos.actividad_fisica_duracion_min
+                }
+            },
+            "indicadores_dietarios": {
+                "recordatorio_24h": indicadores.recordatorio_24h,
+                "frecuencia_consumo": indicadores.frecuencia_consumo
+            },
+            "datos_para_calculadora": {
+                "peso_kg": calculadora.peso_kg,
+                "talla_cm": calculadora.talla_cm,
+                "cintura_cm": calculadora.cintura_cm,
+                "cadera_cm": calculadora.cadera_cm,
+                "pliegues": {
+                    "tricipital_mm": calculadora.pliegue_tricipital_mm,
+                    "subescapular_mm": calculadora.pliegue_subescapular_mm,
+                    "suprailíaco_mm": calculadora.pliegue_suprailíaco_mm
+                },
+                "get_inputs": {
+                    "actividad_fisica_nivel": calculadora.actividad_fisica_nivel,
+                    "peso_kg": calculadora.get_peso_kg,
+                    "talla_cm": calculadora.get_talla_cm,
+                    "edad": calculadora.get_edad,
+                    "sexo": calculadora.get_sexo
+                }
+            }
+        }
+
+    def _generate_resumen_textual(self, result):
+        """Generar un resumen textual de los datos capturados"""
+        paciente = result['paciente']
+        historia = result['historia_clinica']
+        habitos = result['habitos_alimenticios']
+        
+        resumen = f"Formulario capturado para {paciente.person.user.get_full_name()} (DNI: {paciente.person.user.dni}). "
+        
+        # Resumen de historia clínica
+        if historia.antecedentes_familiares:
+            resumen += f"Antecedentes familiares: {', '.join(historia.antecedentes_familiares)}. "
+        
+        if historia.enfermedades_actuales:
+            resumen += f"Enfermedades actuales: {', '.join(historia.enfermedades_actuales)}. "
+        
+        # Resumen de hábitos alimenticios
+        if habitos.comidas_por_dia:
+            resumen += f"Realiza {habitos.comidas_por_dia} comidas al día. "
+        
+        if habitos.salta_comidas == 'SI':
+            resumen += f"Salta comidas: {habitos.cuales_comidas_salta}. "
+        
+        if habitos.actividad_fisica_usa == 'SI':
+            resumen += f"Realiza actividad física: {habitos.actividad_fisica_tipo}. "
+        
+        resumen += "Datos guardados exitosamente para análisis nutricional."
+        
+        return resumen
+
+
+class BuscarPacienteView(APIView):
+    """
+    Vista para buscar pacientes por DNI o ID
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'nutricionista':
+            return Response(
+                {'error': 'Solo nutricionistas pueden buscar pacientes'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        dni = request.query_params.get('dni')
+        id_paciente = request.query_params.get('id_paciente')
+        
+        if not dni and not id_paciente:
+            return Response(
+                {'error': 'Debe proporcionar DNI o ID del paciente'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            if dni:
+                user = User.objects.get(dni=dni, role='paciente')
+                paciente = user.person.patient
+            else:
+                paciente = Patient.objects.get(id=id_paciente)
+            
+            # Verificar que el paciente esté asignado al nutricionista
+            if paciente.assigned_nutritionist != request.user:
+                return Response(
+                    {'error': 'No tiene permisos para acceder a este paciente'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            return Response({
+                'paciente': {
+                    'id': paciente.id,
+                    'dni': paciente.person.user.dni,
+                    'nombre': paciente.person.user.first_name,
+                    'apellido': paciente.person.user.last_name,
+                    'email': paciente.person.user.email,
+                    'telefono': paciente.person.phone,
+                    'fecha_nacimiento': paciente.person.birth_date
+                }
+            })
+            
+        except (User.DoesNotExist, Patient.DoesNotExist):
+            return Response(
+                {'error': 'Paciente no encontrado'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class ObtenerFormularioExistenteView(APIView):
+    """
+    Vista para obtener un formulario existente de un paciente
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, paciente_id):
+        if request.user.role != 'nutricionista':
+            return Response(
+                {'error': 'Solo nutricionistas pueden acceder a formularios'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            paciente = Patient.objects.get(id=paciente_id)
+            
+            # Verificar que el paciente esté asignado al nutricionista
+            if paciente.assigned_nutritionist != request.user:
+                return Response(
+                    {'error': 'No tiene permisos para acceder a este paciente'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Obtener datos existentes
+            historia = getattr(paciente, 'historia_clinica', None)
+            habitos = getattr(paciente, 'habitos_alimenticios', None)
+            indicadores = getattr(paciente, 'indicadores_dietarios', None)
+            calculadora = getattr(paciente, 'datos_calculadora', None)
+            
+            response_data = {
+                'paciente': {
+                    'id': paciente.id,
+                    'dni': paciente.person.user.dni,
+                    'nombre': paciente.person.user.first_name,
+                    'apellido': paciente.person.user.last_name
+                },
+                'historia_clinica': HistoriaClinicaSerializer(historia).data if historia else None,
+                'habitos_alimenticios': HabitosAlimenticiosSerializer(habitos).data if habitos else None,
+                'indicadores_dietarios': IndicadoresDietariosSerializer(indicadores).data if indicadores else None,
+                'datos_calculadora': DatosCalculadoraSerializer(calculadora).data if calculadora else None
+            }
+            
+            return Response(response_data)
+            
+        except Patient.DoesNotExist:
+            return Response(
+                {'error': 'Paciente no encontrado'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )

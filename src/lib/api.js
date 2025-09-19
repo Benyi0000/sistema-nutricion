@@ -131,4 +131,16 @@ export const patientsAPI = {
   delete: (id) => api.delete(`/patients/${id}/`),
 };
 
+// API para el sistema de captura de historia clínica y hábitos alimenticios
+export const formularioAPI = {
+  // Buscar paciente por DNI o ID
+  buscarPaciente: (params) => api.get('/formulario/buscar-paciente/', { params }),
+  
+  // Obtener formulario existente de un paciente
+  obtenerFormulario: (pacienteId) => api.get(`/formulario/paciente/${pacienteId}/`),
+  
+  // Capturar formulario completo
+  capturarFormulario: (formularioData) => api.post('/formulario/captura/', formularioData),
+};
+
 export default api;

@@ -13,6 +13,9 @@ from .views import (
     PatientInvitationListView,
     CompleteRegistrationView,
     InvitationDetailView,
+    FormularioCapturaView,
+    BuscarPacienteView,
+    ObtenerFormularioExistenteView,
 )
 
 app_name = 'users'
@@ -39,4 +42,9 @@ urlpatterns = [
     
     # Completar registro
     path('auth/complete-registration/', CompleteRegistrationView.as_view(), name='complete_registration'),
+    
+    # Sistema de captura de historia clínica y hábitos alimenticios
+    path('formulario/captura/', FormularioCapturaView.as_view(), name='formulario_captura'),
+    path('formulario/buscar-paciente/', BuscarPacienteView.as_view(), name='buscar_paciente'),
+    path('formulario/paciente/<int:paciente_id>/', ObtenerFormularioExistenteView.as_view(), name='formulario_existente'),
 ]

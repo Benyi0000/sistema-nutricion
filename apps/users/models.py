@@ -132,6 +132,158 @@ class NutritionPlan(models.Model):
         return f"Plan: {self.title} - {self.patient.person.user.get_full_name()}"
 
 
+# Modelos para captura de historia clínica y hábitos alimenticios
+
+class HistoriaClinica(models.Model):
+    """Modelo para capturar la historia clínica del paciente"""
+    patient = models.OneToOneField(Patient, on_delete=models.CASCADE, related_name='historia_clinica')
+    
+    # Antecedentes familiares (múltiples opciones)
+    antecedentes_familiares = models.JSONField(default=list, help_text="Lista de antecedentes familiares")
+    
+    # Enfermedades actuales
+    enfermedades_actuales = models.JSONField(default=list, help_text="Lista de enfermedades que padece actualmente")
+    
+    # Modificación de dieta por enfermedad
+    modifico_dieta = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    
+    # Medicación actual
+    medicacion_usa = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    medicacion_detalle = models.TextField(blank=True, help_text="Detalle de la medicación actual")
+    
+    # Cirugías recientes
+    cirugias_tiene = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    cirugias_detalle = models.TextField(blank=True, help_text="Detalle de cirugías recientes")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Historia Clínica - {self.patient.person.user.get_full_name()}"
+
+
+class HabitosAlimenticios(models.Model):
+    """Modelo para capturar los hábitos alimenticios del paciente"""
+    patient = models.OneToOneField(Patient, on_delete=models.CASCADE, related_name='habitos_alimenticios')
+    
+    # Comidas por día
+    comidas_por_dia = models.IntegerField(null=True, blank=True, help_text="Número de comidas al día")
+    tiempos_comida = models.JSONField(default=list, help_text="Tiempos de comida marcados")
+    
+    # Salta comidas
+    salta_comidas = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    cuales_comidas_salta = models.TextField(blank=True, help_text="¿Cuáles comidas salta?")
+    por_que_salta = models.TextField(blank=True, help_text="¿Por qué salta comidas?")
+    
+    # Contexto social
+    con_quien_vive = models.TextField(blank=True, help_text="¿Con quién vive?")
+    quien_cocina = models.TextField(blank=True, help_text="¿Quién cocina?")
+    hora_levantarse = models.TimeField(null=True, blank=True, help_text="¿A qué hora se levanta?")
+    
+    # Ingestas fuera de comidas principales
+    ingestas_fuera = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    que_ingestas_fuera = models.TextField(blank=True, help_text="¿Qué consume fuera de las comidas principales?")
+    frecuencia_ingestas_fuera = models.TextField(blank=True, help_text="Frecuencia de ingestas fuera de comidas")
+    
+    # Intolerancias y alergias
+    intolerancias_alergias = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    lista_intolerancias = models.JSONField(default=list, help_text="Lista de intolerancias/alergias")
+    
+    # Preferencias alimentarias
+    preferidos = models.TextField(blank=True, help_text="Alimentos preferidos")
+    desagrados = models.TextField(blank=True, help_text="Alimentos que no le gustan")
+    
+    # Suplementos
+    suplementos_usa = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    cuales_suplementos = models.TextField(blank=True, help_text="¿Cuáles suplementos usa?")
+    
+    # Aspectos emocionales y conductuales
+    interfiere_emocional = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    agrega_sal = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    
+    # Medios de cocción
+    medios_coccion = models.JSONField(default=list, help_text="Medios de cocción principales")
+    
+    # Hidratación
+    agua_vasos_dia = models.IntegerField(null=True, blank=True, help_text="Vasos de agua al día")
+    bebidas_industriales_vasos_dia = models.IntegerField(null=True, blank=True, help_text="Vasos de bebidas industriales al día")
+    
+    # Consumo de estimulantes
+    cafe_usa = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    cafe_veces_semana = models.IntegerField(null=True, blank=True, help_text="Veces por semana que consume café")
+    
+    alcohol_usa = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    alcohol_frecuencia = models.TextField(blank=True, help_text="Frecuencia de consumo de alcohol")
+    
+    mate_terere_usa = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    mate_terere_frecuencia = models.TextField(blank=True, help_text="Frecuencia de consumo de mate/tereré")
+    
+    # Actividad física
+    actividad_fisica_usa = models.CharField(max_length=2, choices=[('SI', 'Sí'), ('NO', 'No')], default='NO')
+    actividad_fisica_tipo = models.TextField(blank=True, help_text="Tipo de actividad física")
+    actividad_fisica_frecuencia = models.TextField(blank=True, help_text="Frecuencia de actividad física")
+    actividad_fisica_duracion_min = models.IntegerField(null=True, blank=True, help_text="Duración en minutos")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Hábitos Alimenticios - {self.patient.person.user.get_full_name()}"
+
+
+class IndicadoresDietarios(models.Model):
+    """Modelo para capturar indicadores dietarios del paciente"""
+    patient = models.OneToOneField(Patient, on_delete=models.CASCADE, related_name='indicadores_dietarios')
+    
+    # Recordatorio 24h
+    recordatorio_24h = models.JSONField(default=list, help_text="Recordatorio de 24 horas")
+    
+    # Frecuencia de consumo
+    frecuencia_consumo = models.JSONField(default=dict, help_text="Frecuencia de consumo de alimentos")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Indicadores Dietarios - {self.patient.person.user.get_full_name()}"
+
+
+class DatosCalculadora(models.Model):
+    """Modelo para almacenar datos que se usarán en el módulo Calculadora"""
+    patient = models.OneToOneField(Patient, on_delete=models.CASCADE, related_name='datos_calculadora')
+    
+    # Para IMC
+    peso_kg = models.FloatField(null=True, blank=True, help_text="Peso en kilogramos")
+    talla_cm = models.FloatField(null=True, blank=True, help_text="Talla en centímetros")
+    talla_m = models.FloatField(null=True, blank=True, help_text="Talla en metros")
+    
+    # Para ICT/ICC
+    cintura_cm = models.FloatField(null=True, blank=True, help_text="Circunferencia de cintura en cm")
+    cadera_cm = models.FloatField(null=True, blank=True, help_text="Circunferencia de cadera en cm")
+    
+    # Pliegues cutáneos
+    pliegue_tricipital_mm = models.FloatField(null=True, blank=True, help_text="Pliegue tríceps en mm")
+    pliegue_subescapular_mm = models.FloatField(null=True, blank=True, help_text="Pliegue subescapular en mm")
+    pliegue_suprailíaco_mm = models.FloatField(null=True, blank=True, help_text="Pliegue suprailíaco en mm")
+    
+    # Para GET (Gasto Energético Total)
+    actividad_fisica_nivel = models.CharField(max_length=50, blank=True, help_text="Nivel de actividad física")
+    get_peso_kg = models.FloatField(null=True, blank=True, help_text="Peso para cálculo GET")
+    get_talla_cm = models.FloatField(null=True, blank=True, help_text="Talla para cálculo GET")
+    get_edad = models.IntegerField(null=True, blank=True, help_text="Edad para cálculo GET")
+    get_sexo = models.CharField(max_length=10, blank=True, help_text="Sexo para cálculo GET")
+    
+    # Otros datos
+    porcentaje_grasa_input = models.FloatField(null=True, blank=True, help_text="Porcentaje de grasa (input manual)")
+    metodo_porcentaje_grasa = models.CharField(max_length=100, blank=True, help_text="Método usado para medir % grasa")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Datos Calculadora - {self.patient.person.user.get_full_name()}"
+
+
 class PatientInvitation(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pendiente'),

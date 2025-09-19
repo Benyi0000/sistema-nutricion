@@ -4,11 +4,9 @@ import environ
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 env = environ.Env()
-environ.Env.read_env(os.path.join(BASE_DIR, "core", ".env"))
+environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
 
-print("DEBUG from env:", env("DEBUG", default="not found"))
-print("SECRET_KEY from env:", env("SECRET_KEY", default="not found"))
 
 SECRET_KEY = env("SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=False)
