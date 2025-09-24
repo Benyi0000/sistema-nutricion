@@ -143,4 +143,31 @@ export const formularioAPI = {
   capturarFormulario: (formularioData) => api.post('/formulario/captura/', formularioData),
 };
 
+// API para el sistema de citas
+export const appointmentsAPI = {
+  // Obtener todas las citas del usuario actual
+  list: () => api.get('/appointments/'),
+  
+  // Crear una nueva cita
+  create: (appointmentData) => api.post('/appointments/', appointmentData),
+  
+  // Obtener una cita específica
+  get: (id) => api.get(`/appointments/${id}/`),
+  
+  // Actualizar una cita
+  update: (id, appointmentData) => api.put(`/appointments/${id}/`, appointmentData),
+  
+  // Eliminar una cita
+  delete: (id) => api.delete(`/appointments/${id}/`),
+  
+  // Obtener horarios disponibles
+  getAvailableTimes: (params) => api.get('/appointments/available/', { params }),
+  
+  // Obtener citas del paciente
+  getPatientAppointments: () => api.get('/appointments/patient/'),
+  
+  // Obtener citas del nutricionista
+  getNutritionistAppointments: () => api.get('/appointments/nutritionist/'),
+};
+
 export default api;

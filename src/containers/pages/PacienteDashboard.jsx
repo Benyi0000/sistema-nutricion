@@ -1,16 +1,47 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../../redux/actions/auth';
 import Layout from '../../hocs/layouts/Layout';
 import ProfileSettings from '../../components/profile/ProfileSettings';
+import AppointmentCalendar from '../../components/appointments/AppointmentCalendar';
+import { appointmentsAPI } from '../../lib/api';
 
 function PacienteDashboard() {
     const dispatch = useDispatch();
     const { user } = useSelector(state => state.auth);
     const [showProfileSettings, setShowProfileSettings] = useState(false);
+    const [showAppointmentCalendar, setShowAppointmentCalendar] = useState(false);
+    const [appointments, setAppointments] = useState([]);
+    const [loadingAppointments, setLoadingAppointments] = useState(false);
 
     const handleLogout = () => {
         dispatch(logout());
+    };
+
+    const handleDateSelect = (date) => {
+        console.log('Fecha seleccionada:', date);
+    };
+
+    const handleTimeSelect = (time) => {
+        console.log('Hora seleccionada:', time);
+    };
+
+    // Cargar citas del paciente
+    const loadAppointments = async () => {
+        setLoadingAppointments(true);
+        try {
+            const response = await appointmentsAPI.getPatientAppointments();
+            setAppointments(response.data);
+        } catch (error) {
+            console.error('Error loading appointments:', error);
+        } finally {
+            setLoadingAppointments(false);
+        }
+    };
+
+    const handleCloseCalendar = () => {
+        setShowAppointmentCalendar(false);
+        loadAppointments(); // Recargar citas después de cerrar el modal
     };
 
     return (
@@ -121,6 +152,33 @@ function PacienteDashboard() {
                                     </div>
                                 </div>
                             </div>
+                            
+                            
+                        </div>
+
+                        {/* Agendar Turno - Sección Principal */}
+                        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-xl p-8 text-white mb-8">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <div className="bg-white bg-opacity-20 rounded-full p-3 mr-4">
+                                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-bold mb-2">Agenda tu Consulta</h2>
+                                        <p className="text-lg opacity-90">
+                                            Reserva tu próxima cita con tu nutricionista de forma rápida y sencilla
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowAppointmentCalendar(true)}
+                                    className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+                                >
+                                    Agendar Turno
+                                </button>
+                            </div>
                         </div>
 
                         {/* Main Sections */}
@@ -229,6 +287,74 @@ function PacienteDashboard() {
                                     </div>
                                 </div>
                             </div>
+
+                        </div>
+
+                        {/* Mis Citas Agendadas */}
+                        <div className="mt-8 bg-white shadow rounded-lg">
+                            <div className="px-6 py-4 border-b border-gray-200">
+                                <h3 className="text-lg font-medium text-gray-900 flex items-center">
+                                    <svg className="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                    </svg>
+                                    Mis Citas Agendadas
+                                </h3>
+                            </div>
+                            <div className="p-6">
+                                {loadingAppointments ? (
+                                    <div className="text-center py-8">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                                        <p className="text-gray-500 mt-2">Cargando citas...</p>
+                                    </div>
+                                ) : appointments.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {appointments.map((appointment) => (
+                                            <div key={appointment.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-medium text-gray-900">
+                                                            {appointment.consultation_type === 'inicial' ? 'Consulta Inicial' : 
+                                                             appointment.consultation_type === 'seguimiento' ? 'Consulta de Seguimiento' : 
+                                                             'Control'}
+                                                        </h4>
+                                                        <p className="text-sm text-gray-600">
+                                                            {new Date(appointment.appointment_date).toLocaleDateString('es-ES')} a las {appointment.appointment_time}
+                                                        </p>
+                                                        <p className="text-sm text-gray-500">
+                                                            Con: {appointment.nutritionist_name}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                            appointment.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                                                            appointment.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                                                            appointment.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+                                                            appointment.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                                            'bg-yellow-100 text-yellow-800'
+                                                        }`}>
+                                                            {appointment.status === 'scheduled' ? 'Programada' :
+                                                             appointment.status === 'confirmed' ? 'Confirmada' :
+                                                             appointment.status === 'completed' ? 'Completada' :
+                                                             appointment.status === 'cancelled' ? 'Cancelada' :
+                                                             'No se presentó'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                        </svg>
+                                        <h4 className="text-lg font-medium text-gray-900 mb-2">No tienes citas agendadas</h4>
+                                        <p className="text-gray-600">
+                                            Agenda tu primera consulta usando el botón de arriba.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Information Card */}
@@ -265,6 +391,15 @@ function PacienteDashboard() {
                         // Aquí se podría actualizar los datos del usuario en el estado global
                         console.log('Profile updated successfully');
                     }}
+                />
+            )}
+
+            {/* Appointment Calendar Modal */}
+            {showAppointmentCalendar && (
+                <AppointmentCalendar
+                    onDateSelect={handleDateSelect}
+                    onTimeSelect={handleTimeSelect}
+                    onClose={handleCloseCalendar}
                 />
             )}
         </Layout>

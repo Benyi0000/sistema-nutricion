@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Person, Patient, PatientInvitation, HistoriaClinica, HabitosAlimenticios, IndicadoresDietarios, DatosCalculadora
+from .models import User, Person, Patient, PatientInvitation, HistoriaClinica, HabitosAlimenticios, IndicadoresDietarios, DatosCalculadora, Appointment
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -501,3 +501,93 @@ class FormularioCapturaSerializer(serializers.Serializer):
             'indicadores_dietarios': indicadores,
             'datos_calculadora': calculadora
         }
+
+
+# Serializers para el sistema de citas
+
+class AppointmentSerializer(serializers.ModelSerializer):
+    patient_name = serializers.CharField(source='patient.person.user.get_full_name', read_only=True)
+    patient_dni = serializers.CharField(source='patient.person.user.dni', read_only=True)
+    nutritionist_name = serializers.CharField(source='nutritionist.get_full_name', read_only=True)
+    nutritionist_dni = serializers.CharField(source='nutritionist.dni', read_only=True)
+    is_past = serializers.BooleanField(read_only=True)
+    is_today = serializers.BooleanField(read_only=True)
+    is_upcoming = serializers.BooleanField(read_only=True)
+    can_be_cancelled = serializers.BooleanField(read_only=True)
+    can_be_rescheduled = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = Appointment
+        fields = [
+            'id', 'patient', 'nutritionist', 'appointment_date', 'appointment_time',
+            'status', 'notes', 'duration_minutes', 'consultation_type',
+            'created_at', 'updated_at', 'patient_name', 'patient_dni',
+            'nutritionist_name', 'nutritionist_dni', 'is_past', 'is_today',
+            'is_upcoming', 'can_be_cancelled', 'can_be_rescheduled'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def validate_appointment_date(self, value):
+        """Validar que la fecha no sea en el pasado"""
+        from django.utils import timezone
+        if value < timezone.now().date():
+            raise serializers.ValidationError("No se pueden agendar citas en fechas pasadas.")
+        return value
+    
+    def validate(self, attrs):
+        """Validar que no haya conflicto de horarios"""
+        appointment_date = attrs.get('appointment_date')
+        appointment_time = attrs.get('appointment_time')
+        nutritionist = attrs.get('nutritionist')
+        
+        if appointment_date and appointment_time and nutritionist:
+            # Verificar si ya existe una cita en el mismo horario
+            existing_appointment = Appointment.objects.filter(
+                nutritionist=nutritionist,
+                appointment_date=appointment_date,
+                appointment_time=appointment_time,
+                status__in=['scheduled', 'confirmed']
+            ).exclude(id=self.instance.id if self.instance else None)
+            
+            if existing_appointment.exists():
+                raise serializers.ValidationError(
+                    f"Ya existe una cita programada para el {appointment_date} a las {appointment_time}."
+                )
+        
+        return attrs
+
+
+class AppointmentCreateSerializer(serializers.ModelSerializer):
+    """Serializer específico para crear citas desde el frontend"""
+    
+    class Meta:
+        model = Appointment
+        fields = [
+            'appointment_date', 'appointment_time',
+            'notes', 'duration_minutes', 'consultation_type'
+        ]
+    
+    def validate_appointment_date(self, value):
+        """Validar que la fecha no sea en el pasado"""
+        from django.utils import timezone
+        if value < timezone.now().date():
+            raise serializers.ValidationError("No se pueden agendar citas en fechas pasadas.")
+        return value
+    
+    def validate(self, attrs):
+        """Validar que no haya conflicto de horarios"""
+        # Esta validación se moverá a la vista donde tenemos acceso al usuario
+        return attrs
+
+
+class AvailableTimeSlotSerializer(serializers.Serializer):
+    """Serializer para horarios disponibles"""
+    time = serializers.TimeField()
+    is_available = serializers.BooleanField()
+    appointment_id = serializers.IntegerField(required=False, allow_null=True)
+
+
+class AvailableDateSerializer(serializers.Serializer):
+    """Serializer para fechas disponibles con horarios"""
+    date = serializers.DateField()
+    time_slots = AvailableTimeSlotSerializer(many=True)

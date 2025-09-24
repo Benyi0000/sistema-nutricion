@@ -16,6 +16,11 @@ from .views import (
     FormularioCapturaView,
     BuscarPacienteView,
     ObtenerFormularioExistenteView,
+    AppointmentListCreateView,
+    AppointmentDetailView,
+    AvailableAppointmentsView,
+    PatientAppointmentsView,
+    NutritionistAppointmentsView,
 )
 
 app_name = 'users'
@@ -47,4 +52,11 @@ urlpatterns = [
     path('formulario/captura/', FormularioCapturaView.as_view(), name='formulario_captura'),
     path('formulario/buscar-paciente/', BuscarPacienteView.as_view(), name='buscar_paciente'),
     path('formulario/paciente/<int:paciente_id>/', ObtenerFormularioExistenteView.as_view(), name='formulario_existente'),
+    
+    # Sistema de citas
+    path('appointments/', AppointmentListCreateView.as_view(), name='appointment_list_create'),
+    path('appointments/<int:pk>/', AppointmentDetailView.as_view(), name='appointment_detail'),
+    path('appointments/available/', AvailableAppointmentsView.as_view(), name='available_appointments'),
+    path('appointments/patient/', PatientAppointmentsView.as_view(), name='patient_appointments'),
+    path('appointments/nutritionist/', NutritionistAppointmentsView.as_view(), name='nutritionist_appointments'),
 ]

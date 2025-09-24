@@ -380,3 +380,84 @@ class PatientInvitation(models.Model):
     
     def __str__(self):
         return f"Invitación: {self.first_name} {self.last_name} ({self.email}) - {self.get_status_display()}"
+
+
+class Appointment(models.Model):
+    """Modelo para gestionar las citas entre pacientes y nutricionistas"""
+    STATUS_CHOICES = [
+        ('scheduled', 'Programada'),
+        ('confirmed', 'Confirmada'),
+        ('completed', 'Completada'),
+        ('cancelled', 'Cancelada'),
+        ('no_show', 'No se presentó'),
+    ]
+    
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='appointments')
+    nutritionist = models.ForeignKey(User, on_delete=models.CASCADE, related_name='appointments', limit_choices_to={'role': 'nutricionista'})
+    
+    # Fecha y hora de la cita
+    appointment_date = models.DateField(help_text="Fecha de la cita")
+    appointment_time = models.TimeField(help_text="Hora de la cita")
+    
+    # Estado y notas
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
+    notes = models.TextField(blank=True, help_text="Notas adicionales sobre la cita")
+    
+    # Control de tiempo
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Campos para seguimiento
+    duration_minutes = models.IntegerField(default=60, help_text="Duración en minutos")
+    consultation_type = models.CharField(
+        max_length=20, 
+        choices=[
+            ('inicial', 'Consulta Inicial'),
+            ('seguimiento', 'Consulta de Seguimiento'),
+            ('control', 'Control'),
+        ],
+        default='seguimiento'
+    )
+    
+    class Meta:
+        ordering = ['appointment_date', 'appointment_time']
+        unique_together = ['nutritionist', 'appointment_date', 'appointment_time']
+        indexes = [
+            models.Index(fields=['appointment_date', 'appointment_time']),
+            models.Index(fields=['nutritionist', 'appointment_date']),
+            models.Index(fields=['patient', 'appointment_date']),
+        ]
+    
+    @property
+    def datetime(self):
+        """Retorna la fecha y hora combinadas"""
+        from django.utils import timezone
+        return timezone.datetime.combine(self.appointment_date, self.appointment_time)
+    
+    @property
+    def is_past(self):
+        """Verifica si la cita ya pasó"""
+        from django.utils import timezone
+        return self.datetime < timezone.now()
+    
+    @property
+    def is_today(self):
+        """Verifica si la cita es hoy"""
+        from django.utils import timezone
+        return self.appointment_date == timezone.now().date()
+    
+    @property
+    def is_upcoming(self):
+        """Verifica si la cita es futura"""
+        return not self.is_past and self.status in ['scheduled', 'confirmed']
+    
+    def can_be_cancelled(self):
+        """Verifica si la cita puede ser cancelada"""
+        return self.status in ['scheduled', 'confirmed'] and not self.is_past
+    
+    def can_be_rescheduled(self):
+        """Verifica si la cita puede ser reagendada"""
+        return self.status in ['scheduled', 'confirmed'] and not self.is_past
+    
+    def __str__(self):
+        return f"Cita: {self.patient.person.user.get_full_name()} con {self.nutritionist.get_full_name()} - {self.appointment_date.strftime('%d/%m/%Y')} {self.appointment_time.strftime('%H:%M')}"

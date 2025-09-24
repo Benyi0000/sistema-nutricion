@@ -8,7 +8,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 import logging
 
-from .models import User, Patient, PatientInvitation
+from .models import User, Patient, PatientInvitation, Appointment
 from .serializers import (
     UserSerializer, 
     LoginSerializer, 
@@ -25,7 +25,11 @@ from .serializers import (
     HabitosAlimenticiosSerializer,
     IndicadoresDietariosSerializer,
     DatosCalculadoraSerializer,
-    FormularioCapturaSerializer
+    FormularioCapturaSerializer,
+    AppointmentSerializer,
+    AppointmentCreateSerializer,
+    AvailableDateSerializer,
+    AvailableTimeSlotSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -677,3 +681,261 @@ class ObtenerFormularioExistenteView(APIView):
                 {'error': 'Paciente no encontrado'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+# Vistas para el sistema de citas
+
+class AppointmentListCreateView(generics.ListCreateAPIView):
+    """Vista para listar y crear citas"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return AppointmentCreateSerializer
+        return AppointmentSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.role == 'nutricionista':
+            # Los nutricionistas ven todas sus citas
+            return Appointment.objects.filter(nutritionist=user).order_by('appointment_date', 'appointment_time')
+        elif user.role == 'paciente':
+            # Los pacientes ven solo sus citas
+            try:
+                patient = user.person.patient
+                return Appointment.objects.filter(patient=patient).order_by('appointment_date', 'appointment_time')
+            except AttributeError:
+                return Appointment.objects.none()
+        
+        return Appointment.objects.none()
+    
+    def perform_create(self, serializer):
+        user = self.request.user
+        
+        if user.role == 'paciente':
+            # Si es paciente, asignar automáticamente su nutricionista
+            try:
+                patient = user.person.patient
+                nutritionist = patient.assigned_nutritionist
+                if not nutritionist:
+                    raise serializers.ValidationError("No tienes un nutricionista asignado.")
+                
+                # Validar que no haya conflicto de horarios
+                appointment_date = serializer.validated_data.get('appointment_date')
+                appointment_time = serializer.validated_data.get('appointment_time')
+                
+                existing_appointment = Appointment.objects.filter(
+                    nutritionist=nutritionist,
+                    appointment_date=appointment_date,
+                    appointment_time=appointment_time,
+                    status__in=['scheduled', 'confirmed']
+                )
+                
+                if existing_appointment.exists():
+                    raise serializers.ValidationError(
+                        f"Ya existe una cita programada para el {appointment_date} a las {appointment_time}."
+                    )
+                
+                serializer.save(patient=patient, nutritionist=nutritionist)
+            except AttributeError:
+                raise serializers.ValidationError("Perfil de paciente no encontrado.")
+        else:
+            # Si es nutricionista, puede crear citas para cualquier paciente
+            serializer.save()
+
+
+class AppointmentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Vista para ver, actualizar y eliminar una cita específica"""
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = AppointmentSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.role == 'nutricionista':
+            return Appointment.objects.filter(nutritionist=user)
+        elif user.role == 'paciente':
+            try:
+                patient = user.person.patient
+                return Appointment.objects.filter(patient=patient)
+            except AttributeError:
+                return Appointment.objects.none()
+        
+        return Appointment.objects.none()
+
+
+class AvailableAppointmentsView(APIView):
+    """Vista para obtener horarios disponibles para agendar citas"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        nutritionist_id = request.query_params.get('nutritionist_id')
+        date = request.query_params.get('date')
+        
+        # Determinar el nutricionista
+        if user.role == 'paciente':
+            try:
+                patient = user.person.patient
+                nutritionist = patient.assigned_nutritionist
+                if not nutritionist:
+                    return Response(
+                        {'error': 'No tienes un nutricionista asignado'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except AttributeError:
+                return Response(
+                    {'error': 'Perfil de paciente no encontrado'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        elif user.role == 'nutricionista':
+            nutritionist = user
+        else:
+            return Response(
+                {'error': 'Rol de usuario no válido'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if nutritionist_id and user.role == 'nutricionista':
+            try:
+                nutritionist = User.objects.get(id=nutritionist_id, role='nutricionista')
+            except User.DoesNotExist:
+                return Response(
+                    {'error': 'Nutricionista no encontrado'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Horarios disponibles (configurables)
+        available_times = [
+            '09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'
+        ]
+        
+        if date:
+            # Obtener horarios ocupados para una fecha específica
+            from datetime import datetime
+            try:
+                appointment_date = datetime.strptime(date, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            occupied_appointments = Appointment.objects.filter(
+                nutritionist=nutritionist,
+                appointment_date=appointment_date,
+                status__in=['scheduled', 'confirmed']
+            ).values_list('appointment_time', flat=True)
+            
+            occupied_times = [str(time) for time in occupied_appointments]
+            
+            time_slots = []
+            for time_str in available_times:
+                is_available = time_str not in occupied_times
+                time_slots.append({
+                    'time': time_str,
+                    'is_available': is_available,
+                    'appointment_id': None
+                })
+            
+            return Response({
+                'date': date,
+                'nutritionist': {
+                    'id': nutritionist.id,
+                    'name': nutritionist.get_full_name(),
+                    'dni': nutritionist.dni
+                },
+                'time_slots': time_slots
+            })
+        
+        # Si no se especifica fecha, devolver horarios disponibles para los próximos 30 días
+        from datetime import datetime, timedelta
+        from django.utils import timezone
+        
+        start_date = timezone.now().date()
+        end_date = start_date + timedelta(days=30)
+        
+        available_dates = []
+        
+        for i in range(30):
+            current_date = start_date + timedelta(days=i)
+            
+            # Saltar fines de semana
+            if current_date.weekday() >= 5:  # 5 = sábado, 6 = domingo
+                continue
+            
+            occupied_appointments = Appointment.objects.filter(
+                nutritionist=nutritionist,
+                appointment_date=current_date,
+                status__in=['scheduled', 'confirmed']
+            ).values_list('appointment_time', flat=True)
+            
+            occupied_times = [str(time) for time in occupied_appointments]
+            
+            time_slots = []
+            for time_str in available_times:
+                is_available = time_str not in occupied_times
+                time_slots.append({
+                    'time': time_str,
+                    'is_available': is_available,
+                    'appointment_id': None
+                })
+            
+            available_dates.append({
+                'date': current_date.strftime('%Y-%m-%d'),
+                'time_slots': time_slots
+            })
+        
+        return Response({
+            'nutritionist': {
+                'id': nutritionist.id,
+                'name': nutritionist.get_full_name(),
+                'dni': nutritionist.dni
+            },
+            'available_dates': available_dates
+        })
+
+
+class PatientAppointmentsView(APIView):
+    """Vista específica para que los pacientes vean sus citas"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        if user.role != 'paciente':
+            return Response(
+                {'error': 'Acceso denegado'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            patient = user.person.patient
+            appointments = Appointment.objects.filter(patient=patient).order_by('appointment_date', 'appointment_time')
+            
+            serializer = AppointmentSerializer(appointments, many=True)
+            return Response(serializer.data)
+        except AttributeError:
+            return Response(
+                {'error': 'Perfil de paciente no encontrado'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class NutritionistAppointmentsView(APIView):
+    """Vista específica para que los nutricionistas vean sus citas"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        if user.role != 'nutricionista':
+            return Response(
+                {'error': 'Acceso denegado'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        appointments = Appointment.objects.filter(nutritionist=user).order_by('appointment_date', 'appointment_time')
+        serializer = AppointmentSerializer(appointments, many=True)
+        return Response(serializer.data)
