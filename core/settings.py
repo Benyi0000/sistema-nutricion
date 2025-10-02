@@ -1,141 +1,223 @@
+# core/settings.py
 import os
 import environ
+from datetime import timedelta
+from pathlib import Path
 
 env = environ.Env()
 environ.Env.read_env()
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('SECRET_KEY')
-DEBUG = env.bool("DEBUG", default=False)
+# --- ENV (respeta tu .env) ---
+SECRET_KEY = env("SECRET_KEY", default="dev-secret-key")
+DEBUG = env.bool("DEBUG", default=True)
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS_DEV')
+# DEV lists (coma-separado en tu .env)
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS_DEV", default=["*"])
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS_DEV", default=["http://localhost:5173"])
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS_DEV",
+    default=["http://localhost:5173", "http://127.0.0.1:8000"],
+)
 
-# ---- Apps ----
+# --- Apps ---
 DJANGO_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
 ]
-PROJECT_APPS = []
+PROJECT_APPS = [
+    "apps.user",
+]
 THIRD_PARTY_APPS = [
-    'corsheaders',
-    'rest_framework',
-    'ckeditor',
-    'ckeditor_uploader',
+    "corsheaders",
+    "rest_framework",
+    "djoser",
+    "social_django",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
+    "ckeditor",
+    "ckeditor_uploader",
 ]
 INSTALLED_APPS = DJANGO_APPS + PROJECT_APPS + THIRD_PARTY_APPS
 
-# ---- CKEditor ----
+# --- CKEditor ---
 CKEDITOR_CONFIGS = {
-    'default': {
-        'toolbar': 'Custom',
-        'toolbar_Custom': [
-            ['Bold', 'Italic', 'Underline'],
-            ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock'],
-            ['Link', 'Unlink'],
-            ['RemoveFormat', 'Source']
+    "default": {
+        "toolbar": "Custom",
+        "toolbar_Custom": [
+            ["Bold", "Italic", "Underline"],
+            [
+                "NumberedList",
+                "BulletedList",
+                "-",
+                "Outdent",
+                "Indent",
+                "-",
+                "JustifyLeft",
+                "JustifyCenter",
+                "JustifyRight",
+                "JustifyBlock",
+            ],
+            ["Link", "Unlink"],
+            ["RemoveFormat", "Source"],
         ],
-        'autoParagraph': False,
+        "autoParagraph": False,
     }
 }
 CKEDITOR_UPLOAD_PATH = "media/"
 
-# ---- Middleware ----
+# --- Middleware ---
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    # 'whitenoise.middleware.WhiteNoiseMiddleware',  # <-- si quieres servir estáticos sin Nginx
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",  # importante: primero
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'core.urls'
+ROOT_URLCONF = "core.urls"
 
-# ---- Frontend (dist) ----
-FRONTEND_DIST = os.path.join(BASE_DIR, "dist")
-
+# --- Templates ---
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [FRONTEND_DIST],   # Django va a servir dist/index.html
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [os.path.join(BASE_DIR, "dist")],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
+WSGI_APPLICATION = "core.wsgi.application"
 
-# ---- Database ----
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+# --- Database (usa tu DATABASES_URL si existe; si está vacío → SQLite) ---
+DB_URL = env("DATABASES_URL", default="").strip()
+if DB_URL:
+    # ejemplo: postgres://user:pass@host:port/dbname
+    DATABASES = {"default": env.db("DATABASES_URL")}
+    DATABASES["default"]["ATOMIC_REQUESTS"] = True
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
+        }
     }
-}
 
-# ---- Password validation ----
-AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+# --- Hashers (Argon2) ---
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
 ]
 
-# ---- Internacionalización ----
-LANGUAGE_CODE = 'es'
-TIME_ZONE = 'America/Bogota'
+# --- Password validation ---
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# --- i18n / TZ ---
+LANGUAGE_CODE = "es"
+TIME_ZONE = "America/Argentina/Cordoba"
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
-# ---- Static & Media ----
-STATIC_URL = '/static/'
+# --- Static & Media ---
+STATIC_URL = "/static/"
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+STATICFILES_DIRS = [os.path.join(BASE_DIR, "dist")]
 
-# destino de collectstatic → separado de tu carpeta frontend
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+MEDIA_URL = "/media/"
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-# Django debe encontrar los assets que Vite genera en dist/assets
-STATICFILES_DIRS = [ os.path.join(BASE_DIR, 'dist') ]
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# ---- DRF ----
+# --- DRF / JWT ---
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
-    ]
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+    ],
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
 }
 
-# ---- CORS / CSRF ----
-CORS_ALLOWED_ORIGINS = env.list('CORS_ORIGIN_WHITELIST_DEV')
-CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS_DEV')
+SIMPLE_JWT = {
+    "AUTH_HEADER_TYPES": ("JWT",),  # Authorization: JWT <token>
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60 * 24),  # 24h
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+}
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# --- Djoser (login por DNI) ---
+DJOSER = {
+    "LOGIN_FIELD": "dni",
+    "USER_CREATE_PASSWORD_RETYPE": True,
+    "SET_PASSWORD_RETYPE": True,
+    "PASSWORD_RESET_CONFIRM_RETYPE": True,
+    "SEND_CONFIRMATION_EMAIL": False,
+    "SEND_ACTIVATION_EMAIL": False,
+    "USERNAME_CHANGED_EMAIL_CONFIRMATION": False,
+    "PASSWORD_CHANGED_EMAIL_CONFIRMATION": False,
+    "PASSWORD_RESET_CONFIRM_URL": "#/password/reset/confirm/{uid}/{token}",
+    "USERNAME_RESET_CONFIRM_URL": "#/username/reset/confirm/{uid}/{token}",
+    "ACTIVATION_URL": "#/activate/{uid}/{token}",
+    "SOCIAL_AUTH_TOKEN_STRATEGY": "djoser.social.token.jwt.TokenStrategy",
+    "SOCIAL_AUTH_ALLOWED_REDIRECT_URIS": env.list(
+        "SOCIAL_AUTH_ALLOWED_REDIRECT_URIS",
+        default=[],
+    ),
+    'SERIALIZERS': {
+        'user_create': 'apps.user.serializers.UserCreateSerializer',
+        'user': 'apps.user.serializers.UserDetailSerializer',
+        'current_user': 'apps.user.serializers.UserDetailSerializer',
+        'user_delete': 'djoser.serializers.UserDeleteSerializer',
+    },
+}
 
-# ---- Ajustes de producción ----
+AUTH_USER_MODEL = "user.UserAccount"
+
+# --- Auth backends (Google listo para más adelante) ---
+AUTHENTICATION_BACKENDS = (
+    "social_core.backends.google.GoogleOAuth2",
+    "django.contrib.auth.backends.ModelBackend",
+)
+SOCIAL_AUTH_USER_MODEL = AUTH_USER_MODEL
+SOCIAL_AUTH_REDIRECT_IS_HTTPS = not DEBUG
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = env("GOOGLE_CLIENT_ID", default="")
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = env("GOOGLE_CLIENT_SECRET", default="")
+
+# --- CORS/CSRF (dev) ---
+# Ya arriba tomamos tus env: CORS_ALLOWED_ORIGINS, CSRF_TRUSTED_ORIGINS
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# --- Deploy overrides (usa tus *_DEPLOY) ---
 if not DEBUG:
-    ALLOWED_HOSTS = env.list('ALLOWED_HOSTS_DEPLOY')
-    CORS_ALLOWED_ORIGINS = env.list('CORS_ORIGIN_WHITELIST_DEPLOY')
-    CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS_DEPLOY')
+    ALLOWED_HOSTS = env.list("ALLOWED_HOSTS_DEPLOY", default=ALLOWED_HOSTS)
+    CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS_DEPLOY", default=CORS_ALLOWED_ORIGINS)
+    CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS_DEPLOY", default=CSRF_TRUSTED_ORIGINS)
 
-    DATABASES = {
-        "default": env.db("DATABASES_URL"),
-    }
-    DATABASES["default"]["ATOMIC_REQUESTS"] = True
+    DB_URL = env("DATABASES_URL", default="").strip()
+    if DB_URL:
+        DATABASES = {"default": env.db("DATABASES_URL")}
+        DATABASES["default"]["ATOMIC_REQUESTS"] = True

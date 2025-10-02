@@ -3,14 +3,14 @@ import Layout from "../../hocs/layouts/Layout";
 import Footer from "../../components/navigation/Footer";
 
 function Home() {
-    return(
+    return (
         <Layout>
-            <Navbar />
-            <div className="pt-28 min-h-screen">
-                home
-            </div>
-            <Footer />
+        <Navbar />
+        <div className="pt-28 min-h-screen">
+            home
+        </div>
+        <Footer />
         </Layout>
     )
-}
+    }
 export default Home;
