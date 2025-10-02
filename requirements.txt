@@ -9,3 +9,7 @@ psycopg == 3.2.9
 djangorestframework_simplejwt == 5.5.1
 djoser == 2.3.3
 social-auth-app-django == 5.5.1
+social-auth-core == 4.7.0
+djangorestframework_simplejwt == 5.5.1
+argon2-cffi == 25.1.0
+PyJWT == 2.10.1
