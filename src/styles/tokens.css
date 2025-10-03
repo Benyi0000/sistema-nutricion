@@ -1,0 +1,37 @@
+/* src/styles/tokens.css */
+:root {
+  /* Marca */
+  --brand-50:  #F3E8FF;   /* lavanda muy suave */
+  --brand-100: #E9D5FF;
+  --brand-200: #D8B4FE;
+  --brand-300: #C084FC;
+  --brand-400: #A78BFA;
+  --brand-500: #8B5CF6;   /* primario */
+  --brand-600: #7C3AED;   /* hover / acento fuerte */
+  --brand-700: #6D28D9;
+
+  /* Superficies claras */
+  --surface-0:  #FFFFFF;
+  --surface-1:  #F8F7FB;  /* blanco violáceo */
+  --surface-2:  #F2EEFA;  /* tarjeta suave */
+  --border-1:   #E9E6F4;
+
+  /* Texto (light) */
+  --text-1: #0F172A;      /* principal */
+  --text-2: #475569;      /* secundario */
+}
+
+/* Dark mode */
+:root.dark {
+  --surface-0: #0F1014;
+  --surface-1: #14151B;
+  --surface-2: #1A1B22;
+  --border-1:  #262735;
+
+  --text-1: #F8FAFC;
+  --text-2: #CBD5E1;
+
+  /* sube un toque la marca en dark para contraste */
+  --brand-500: #9B6CFF;
+  --brand-600: #B08AFF;
+}

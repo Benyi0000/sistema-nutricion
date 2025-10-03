@@ -1,0 +1,4 @@
+npm i i18next react-i18next i18next-browser-languagedetector
+
+npm i -D @vitejs/plugin-react
+

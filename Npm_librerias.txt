@@ -1,2 +1,0 @@
-npm i redux redux-thunk react-redux  react-router-dom axios
-npm i -D @redux-devtools/extension
