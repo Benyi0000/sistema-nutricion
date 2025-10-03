@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 
+import Home from '../src/containers/pages/Home';
+
 import Login from './containers/pages/nutricionista/Login';
 import ConsultaInicial from './containers/pages/nutricionista/ConsultaInicial';
 import SeguimientoCrear from './containers/pages/nutricionista/SeguimientoCrear';
@@ -29,6 +31,7 @@ const PlantillasIndex = () => <div className="text-gray-700">Plantillas</div>;
 export default function AppRoutes() {
     return (
         <Routes>
+        <Route path="landing" element={<Home/>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/cambiar-clave" element={<ChangePassword />} />
