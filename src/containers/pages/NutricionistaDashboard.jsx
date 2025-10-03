@@ -5,6 +5,7 @@ import { logout } from '../../redux/actions/auth';
 import { patientsAPI, appointmentsAPI } from '../../lib/api';
 import Layout from '../../hocs/layouts/Layout';
 import ProfileSettings from '../../components/profile/ProfileSettings';
+import { formatLocalDate } from '../../utils/dateUtils';
 
 function NutricionistaDashboard() {
     const dispatch = useDispatch();
@@ -438,7 +439,7 @@ function NutricionistaDashboard() {
                                                              'Control'}
                                                         </p>
                                                         <p className="text-sm text-gray-500">
-                                                            {new Date(appointment.appointment_date).toLocaleDateString('es-ES')} a las {appointment.appointment_time}
+                                                            {formatLocalDate(appointment.appointment_date)} a las {appointment.appointment_time}
                                                         </p>
                                                         {appointment.notes && (
                                                             <p className="text-sm text-gray-500 mt-1">

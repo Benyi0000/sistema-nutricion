@@ -737,7 +737,9 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
                         f"Ya existe una cita programada para el {appointment_date} a las {appointment_time}."
                     )
                 
-                serializer.save(patient=patient, nutritionist=nutritionist)
+                appointment = serializer.save(patient=patient, nutritionist=nutritionist)
+                print(f"DEBUG: Turno creado - ID: {appointment.id}, Paciente: {patient.id}, Nutricionista: {nutritionist.id}")
+                print(f"DEBUG: Fecha: {appointment.appointment_date}, Hora: {appointment.appointment_time}")
             except AttributeError:
                 raise serializers.ValidationError("Perfil de paciente no encontrado.")
         else:
@@ -914,9 +916,14 @@ class PatientAppointmentsView(APIView):
             patient = user.person.patient
             appointments = Appointment.objects.filter(patient=patient).order_by('appointment_date', 'appointment_time')
             
+            # Log para depuración
+            print(f"DEBUG: Usuario: {user.dni}, Patient ID: {patient.id if patient else 'None'}")
+            print(f"DEBUG: Turnos encontrados: {appointments.count()}")
+            
             serializer = AppointmentSerializer(appointments, many=True)
             return Response(serializer.data)
-        except AttributeError:
+        except AttributeError as e:
+            print(f"DEBUG: Error AttributeError: {e}")
             return Response(
                 {'error': 'Perfil de paciente no encontrado'}, 
                 status=status.HTTP_400_BAD_REQUEST

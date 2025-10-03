@@ -432,7 +432,8 @@ class Appointment(models.Model):
     def datetime(self):
         """Retorna la fecha y hora combinadas"""
         from django.utils import timezone
-        return timezone.datetime.combine(self.appointment_date, self.appointment_time)
+        naive_datetime = timezone.datetime.combine(self.appointment_date, self.appointment_time)
+        return timezone.make_aware(naive_datetime)
     
     @property
     def is_past(self):

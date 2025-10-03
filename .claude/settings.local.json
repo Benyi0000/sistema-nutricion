@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Read(//c/Users/MatiB/Downloads/**)"
     ],
     "deny": [],
     "ask": []

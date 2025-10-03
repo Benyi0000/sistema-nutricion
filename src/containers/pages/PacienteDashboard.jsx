@@ -5,6 +5,7 @@ import Layout from '../../hocs/layouts/Layout';
 import ProfileSettings from '../../components/profile/ProfileSettings';
 import AppointmentCalendar from '../../components/appointments/AppointmentCalendar';
 import { appointmentsAPI } from '../../lib/api';
+import { formatLocalDate } from '../../utils/dateUtils';
 
 function PacienteDashboard() {
     const dispatch = useDispatch();
@@ -43,6 +44,11 @@ function PacienteDashboard() {
         setShowAppointmentCalendar(false);
         loadAppointments(); // Recargar citas después de cerrar el modal
     };
+
+    // Cargar citas al montar el componente
+    useEffect(() => {
+        loadAppointments();
+    }, []);
 
     return (
         <Layout>
@@ -318,7 +324,7 @@ function PacienteDashboard() {
                                                              'Control'}
                                                         </h4>
                                                         <p className="text-sm text-gray-600">
-                                                            {new Date(appointment.appointment_date).toLocaleDateString('es-ES')} a las {appointment.appointment_time}
+                                                            {formatLocalDate(appointment.appointment_date)} a las {appointment.appointment_time}
                                                         </p>
                                                         <p className="text-sm text-gray-500">
                                                             Con: {appointment.nutritionist_name}

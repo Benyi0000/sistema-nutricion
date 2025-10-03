@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { appointmentsAPI } from '../../lib/api';
+import { toISODateString } from '../../utils/dateUtils';
 
 function AppointmentCalendar({ onDateSelect, onTimeSelect, onClose }) {
     const [selectedDate, setSelectedDate] = useState(null);
@@ -12,12 +13,12 @@ function AppointmentCalendar({ onDateSelect, onTimeSelect, onClose }) {
     // Función para cargar horarios disponibles
     const loadAvailableTimes = async (date) => {
         if (!date) return;
-        
+
         setLoading(true);
         setError(null);
-        
+
         try {
-            const dateStr = date.toISOString().split('T')[0];
+            const dateStr = toISODateString(date);
             const response = await appointmentsAPI.getAvailableTimes({ date: dateStr });
             setAvailableTimes(response.data.time_slots || []);
         } catch (err) {
@@ -106,16 +107,16 @@ function AppointmentCalendar({ onDateSelect, onTimeSelect, onClose }) {
         if (selectedDate && selectedTime) {
             setLoading(true);
             setError(null);
-            
+
             try {
                 const appointmentData = {
-                    appointment_date: selectedDate.toISOString().split('T')[0],
+                    appointment_date: toISODateString(selectedDate),
                     appointment_time: selectedTime,
                     consultation_type: 'seguimiento',
                     notes: '',
                     duration_minutes: 60
                 };
-                
+
                 console.log('Sending appointment data:', appointmentData);
                 await appointmentsAPI.create(appointmentData);
                 alert(`Cita agendada para el ${selectedDate.toLocaleDateString('es-ES')} a las ${selectedTime}`);
@@ -123,8 +124,8 @@ function AppointmentCalendar({ onDateSelect, onTimeSelect, onClose }) {
             } catch (err) {
                 console.error('Error creating appointment:', err);
                 console.error('Error response:', err.response?.data);
-                const errorMessage = err.response?.data?.error || 
-                                   err.response?.data?.detail || 
+                const errorMessage = err.response?.data?.error ||
+                                   err.response?.data?.detail ||
                                    err.response?.data?.non_field_errors?.[0] ||
                                    'Error al agendar la cita';
                 setError(errorMessage);
