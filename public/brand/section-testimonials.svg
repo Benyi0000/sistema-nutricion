@@ -1,0 +1,17 @@
+<!-- /public/patterns/testimonials-mask.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- comillas grandes -->
+  <g fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.9">
+    <path d="M22 36 q0 -12 12 -12 h6 v6 h-6 q-6 0 -6 6 v2 h12 v16 h-18z" />
+    <path d="M66 28 q0 -12 12 -12 h6 v6 h-6 q-6 0 -6 6 v2 h12 v16 h-18z" />
+  </g>
+  <!-- ondas de voz sutiles -->
+  <g fill="none" stroke="#fff" stroke-width="1.2" opacity="0.5">
+    <path d="M16 86 q14 -6 28 0 t28 0 t28 0" />
+    <path d="M10 102 q16 -8 32 0 t32 0" opacity="0.45"/>
+  </g>
+  <g fill="#fff" opacity="0.3">
+    <circle cx="104" cy="22" r="1.2"/>
+    <circle cx="92" cy="110" r="1.2"/>
+  </g>
+</svg>
