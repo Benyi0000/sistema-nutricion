@@ -1,0 +1,163 @@
+{
+  "common": {
+    "login": "Login",
+    "contact": "Contactar"
+  },
+  "hero": {
+    "title": "Transforma tu salud con {{brand}}",
+    "lead": "Planes alimentarios personalizados, seguimiento clinico y calculos nutricionales en un solo lugar."
+  },
+  "whatsapp": {
+    "tooltip": "Escríbenos por WhatsApp",
+    "greetings": {
+      "morning": "¡Buenos días!",
+      "afternoon": "¡Buenas tardes!",
+      "evening": "¡Buenas noches!"
+    },
+    "message": "Licenciada, me gustaría obtener más información sobre una posible consulta. ¡Muchas gracias!"
+  },
+  "services": {
+    "title": "Nuestros Servicios",
+    "items": [
+      {
+        "title": "Evaluación Nutricional",
+        "desc": "Mediciones antropométricas y cálculo de indicadores como IMC e ICC.",
+        "img": "/brand/assesment.png"
+      },
+      {
+        "title": "Plan Alimentario",
+        "desc": "Planes personalizados orientados a salud, rendimiento o bienestar.",
+        "img": "/brand/meal-plan.png"
+      },
+      {
+        "title": "Seguimiento Continuo",
+        "desc": "Control de progreso con reportes y ajustes adaptativos.",
+        "img": "/brand/follow-up.png"
+      }
+    ]
+  },
+  "why": {
+    "title": "¿Por qué elegirnos?",
+    "bullets": [
+      "Atención personalizada y profesional",
+      "Acceso online a tu historial y planes",
+      "Plataforma segura y fácil de usar"
+    ]
+  },
+  "testimonials": {
+    "title": "Testimonios de Pacientes",
+    "items": [
+      { "name": "Juan R.", "meta": "Paciente desde 2023", "quote": "Gracias a NutriSalud pude mejorar mis hábitos alimenticios." },
+      { "name": "Lucía M.", "meta": "Paciente desde 2024", "quote": "El seguimiento es excelente. Me siento acompañada." },
+      { "name": "Sofía P.", "meta": "Atleta amateur", "quote": "El plan mejoró mi rendimiento y descanso." }
+    ]
+  },
+  "faq": {
+    "title": "Preguntas Frecuentes",
+    "items": [
+      { "q": "¿Cómo puedo agendar una cita?", "a": "Hacé clic en “Contactar” o en el botón de WhatsApp y coordinamos tu turno." },
+      { "q": "¿La primera consulta incluye plan?", "a": "Incluye evaluación completa. El plan se entrega a las 24–48 h con objetivos claros." },
+      { "q": "¿Qué medios de pago aceptan?", "a": "Efectivo, transferencia y tarjetas (consultar promociones vigentes)." }
+    ]
+  },
+  "cta": {
+    "title": "¡Comienza tu Transformación Hoy!",
+    "lead": "Da el primer paso hacia una vida más saludable. Contáctanos y agenda tu consulta inicial.",
+    "button": "Escríbenos por WhatsApp"
+  },
+  "contactCTA": {
+    "location": "Ubicación",
+    "city": "Buenos Aires, Argentina",
+    "modes": "Consultas presenciales y virtuales",
+    "whatsapp": "WhatsApp",
+    "phone": "+54 9 11 2345-6789",
+    "emailLabel": "Email",
+    "email": "leila.olmedo@nutrisalud.com",
+    "emailSla": "Respuesta en 24hs",
+    "hoursLabel": "Horarios",
+    "hoursWeek": "Lunes a Viernes: 9:00 – 19:00",
+    "hoursSat": "Sábados: 9:00 – 13:00",
+    "social": "Síguenos en redes sociales",
+    "formTitle": "Solicita tu Consulta",
+    "name": "Nombre",
+    "lastname": "Apellido",
+    "emailField": "Email",
+    "phoneField": "Teléfono",
+    "goal": "¿Cuál es tu objetivo?",
+    "goalPlaceholder": "Selecciona tu objetivo",
+    "goals": ["Pérdida de peso", "Rendimiento deportivo", "Recomposición corporal", "Educación alimentaria"],
+    "message": "Mensaje",
+    "messagePH": "Cuéntanos más sobre tus objetivos, restricciones, etc.",
+    "disclaimer": "Te contactaremos en menos de 24 horas para coordinar tu consulta inicial."
+  },
+  "footer": {
+    "brand": "NutriSalud",
+    "tagline": "Haciendo del mundo un lugar más saludable mediante hábitos simples y sostenibles.",
+    "solutions": "Soluciones",
+    "plans": "Planes",
+    "analytics": "Analíticas",
+    "commerce": "Comercio",
+    "insights": "Insights",
+    "support": "Soporte",
+    "pricing": "Precios",
+    "docs": "Documentación",
+    "guides": "Guías",
+    "status": "Estado",
+    "company": "Compañía",
+    "about": "Nosotros",
+    "blog": "Blog",
+    "jobs": "Empleos",
+    "press": "Prensa",
+    "copyright": "© {{year}} NutriSalud. Todos los derechos reservados."
+  },
+  "profile": {
+    "title": "Buscá a tu Especialista Ideal",
+    "name": "Lic. Olmedo Leila",
+    "degree": "Licenciada en Nutrición (M.N. 310)",
+    "bio": "Transformando tu relación con la comida, para una vida más plena y saludable.\n\nComo Licenciada en Nutrición, egresada con dedicación de la Universidad de la Cuenca del Plata en el año 2022, mi misión se centra en ir más allá de las dietas restrictivas. Creo firmemente en la educación alimentaria como la herramienta más poderosa para lograr cambios duraderos y positivos.\n\nMi enfoque profesional se ha especializado en áreas donde la nutrición se convierte en un pilar fundamental para la calidad de vida:\n\nNutrición y Obesidad: Te acompaño en un proceso integral de cambio de hábitos, entendiendo las causas multifactoriales del exceso de peso. Juntos, trabajaremos en un plan personalizado, realista y sostenible, enfocado en tu salud y bienestar general, no solo en la báscula.\n\nNutrición Deportiva: Ya sea que seas un atleta de élite o simplemente busques optimizar tu rendimiento en el gimnasio, diseño estrategias nutricionales que se adapten a tus metas, ayudándote a mejorar tu energía, resistencia y recuperación.\n\nNutrición Infantil y Educación Alimentaria: Me apasiona crear una generación futura más saludable. Trabajo con los más pequeños y sus familias para establecer una relación positiva con la comida desde la infancia, mediante planes divertidos, educativos y adaptados a cada etapa de crecimiento, abordando selectividad alimentaria, sobrepeso infantil y más.\n\nMi Compromiso Contigo:\n\nMi práctica se basa en la escucha activa, la empatía y la ciencia. Utilizo un lenguaje claro y cercano, evitando prohibiciones y fomentando la autonomía. Creo que cada persona es única, por lo que tus gustos, tu ritmo de vida y tus objetivos serán la base de tu plan de alimentación.\n\nEstoy aquí para guiarte, educarte y apoyarte en cada paso de este viaje hacia una versión más saludable y feliz de ti mismo.\n\n¿Listo para comenzar? Agendemos una consulta y hablemos de tus metas.",
+    "photo": "/brand/nutri-leila.png",
+    "tags": ["Educación alimentaria", "Obesidad", "Deporte", "Infantil"]
+  },
+  "profilesTitle": "Conoce a nuestros especialistas",
+  "profiles": [
+    {
+      "id": "leila",
+      "name": "Lic. Olmedo Leila",
+      "degree": "Licenciada en Nutrición (M.N. 310)",
+      "photo": "/brand/nutri-leila.png",
+      "tags": ["Educación alimentaria", "Obesidad", "Deporte", "Infantil"],
+      "lead": "Educación alimentaria basada en evidencia.",
+      "bullets": [
+        "Plan personalizado, realista y sostenible",
+        "Acompañamiento humano y cercano",
+        "Reportes y ajustes por objetivos"
+      ]
+    },
+    {
+      "id": "martin",
+      "name": "Lic. Martín Álvarez",
+      "degree": "Esp. en Nutrición Deportiva",
+      "photo": "/brand/nutri-martin.png",
+      "tags": ["Deporte", "Fuerza", "Resistencia"],
+      "lead": "Rendimiento deportivo de alto nivel sin sacrificar salud.",
+      "bullets": [
+        "Periodización nutricional pre/intra/post",
+        "Estrategias para fuerza, cross y endurance",
+        "Educación y adherencia a largo plazo"
+      ]
+    },
+    {
+      "id": "camila",
+      "name": "Lic. Camila Rossi",
+      "degree": "Nutrición Infantil y Familiar",
+      "photo": "/brand/nutri-camila.png",
+      "tags": ["Infantil", "Familias", "Selectividad"],
+      "lead": "Alimentación positiva en la infancia y en casa.",
+      "bullets": [
+        "Planes por etapas de crecimiento",
+        "Herramientas para picky eating",
+        "Hábitos saludables en familia"
+      ]
+    }
+  ]
+}

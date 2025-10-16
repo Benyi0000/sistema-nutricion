@@ -1,0 +1,356 @@
+/* =========================================================
+   THEME TOKENS — LIGHT
+   ========================================================= */
+:root {
+  /* Base */
+  --lila-claro: #e8ddf5;
+  --lila: #b39ddb;
+  --lila-oscuro: #9575cd;
+  --fondo: #f9f7fc;
+  --texto: #333333;
+  --gris: #eeeeee;
+  --borde: #dcdcdc;
+
+  /* Type & Surfaces */
+  --text-1: var(--texto);
+  --text-2: #555555;
+  --surface-0: #ffffff;
+  --surface-1: #faf9fd;
+  --surface-2: #f5f1fb;
+
+  /* Footer (light) */
+  --surface-footer-light: #ede7f6;
+  --surface-footer: var(--surface-footer-light);
+
+  /* Borders / Elevation */
+  --border-1: var(--borde);
+  --elev-1: 0 4px 18px rgba(0, 0, 0, 0.06);
+
+  /* Brand scale */
+  --brand-50: var(--lila-claro);
+  --brand-100: #ddd0f0;
+  --brand-200: #cfc0ea;
+  --brand-300: #c3b3e4;
+  --brand-400: #bba7e0;
+  --brand-500: var(--lila);
+  --brand-600: var(--lila-oscuro);
+  --brand-700: #7b62c4;
+  --brand-800: #6c56b8;
+  --brand-900: #5943a8;
+
+  /* Gradients (suaves) */
+  --grad-soft: linear-gradient(180deg, #fbfaff 0%, #ffffff 100%);
+  --grad-lila: linear-gradient(180deg, #f5efff 0%, #efe7ff 100%);
+  --grad-lila-strong: linear-gradient(180deg, #e8ddf5 0%, #dbcff2 100%);
+
+  /* Page wash (fondo base sutil para el main/body) */
+  --page-wash: linear-gradient(180deg, #fbfaff 0%, #fdfcff 60%, #ffffff 100%);
+
+  /* Glass */
+  --glass-bg: color-mix(in srgb, var(--surface-0) 76%, transparent);
+  --glass-ring: color-mix(in srgb, var(--brand-600) 28%, white);
+
+  /* Selection / Focus */
+  --selection: color-mix(in oklab, var(--brand-300) 40%, white);
+  --focus: var(--brand-300);
+
+  /* Rhythm / Offsets */
+  --nav-offset: 76px;
+
+  /* Hero wallpaper (light) */
+  --hero-wallpaper-color: rgba(0, 0, 0, 0.14);
+  --hero-wallpaper-opacity: 0.75;
+  --hero-wallpaper-scale: clamp(180px, 24vw, 360px);
+
+  /* Waves colors */
+  --ns-wave-1: var(--brand-600);
+  --ns-wave-2: var(--brand-500);
+  --ns-wave-3: var(--brand-400);
+
+  /* Section wallpapers (light) */
+  --sec-services-color: rgba(0,0,0,0.14);
+  --sec-services-opacity: .58;
+  --sec-services-scale: clamp(160px, 22vw, 340px);
+
+  --sec-why-color: color-mix(in oklab, var(--brand-500) 22%, #0000);
+  --sec-why-opacity: .50;
+  --sec-why-scale: clamp(160px, 22vw, 340px);
+
+  --sec-profile-color: color-mix(in oklab, var(--brand-500) 18%, #0000);
+  --sec-profile-opacity: .38;
+  --sec-profile-scale: clamp(170px, 24vw, 360px);
+
+  --sec-testimonials-color: color-mix(in oklab, var(--brand-600) 16%, #0000);
+  --sec-testimonials-opacity: .42;
+  --sec-testimonials-scale: clamp(160px, 22vw, 340px);
+
+  --sec-faq-color: color-mix(in oklab, var(--brand-400) 12%, #0000);
+  --sec-faq-opacity: .26;
+  --sec-faq-scale: clamp(150px, 20vw, 320px);
+}
+
+/* =========================================================
+   THEME TOKENS — DARK
+   ========================================================= */
+:root.dark,
+.dark {
+  --fondo: #121114;
+  --texto: #e9e7f2;
+  --text-1: var(--texto);
+  --text-2: #bdb9ce;
+  --surface-0: #18171c;
+  --surface-1: #15141a;
+  --surface-2: #1e1c24;
+  --border-1: #2b2834;
+
+  /* Footer (dark) */
+  --surface-footer: var(--surface-1);
+
+  /* Brand remap */
+  --brand-50: #3a2b55;
+  --brand-100: #463068;
+  --brand-200: #60449a;
+  --brand-300: #7a5abd;
+  --brand-400: #8a6cd0;
+  --brand-500: var(--lila);
+  --brand-600: var(--lila-oscuro);
+  --brand-700: #bba7e0;
+
+  --elev-1: 0 6px 24px rgba(0, 0, 0, 0.25);
+  --selection: color-mix(in oklab, var(--brand-300) 35%, white 5%);
+  --focus: var(--brand-400);
+
+  --grad-soft: linear-gradient(180deg, #161521 0%, #121116 100%);
+  --grad-lila: linear-gradient(180deg, #1b1826 0%, #161421 100%);
+  --grad-lila-strong: linear-gradient(180deg, #1f1b2b 0%, #191628 100%);
+
+  /* Page wash dark */
+  --page-wash: linear-gradient(180deg, #151420 0%, #14131c 50%, #121119 100%);
+
+  --glass-bg: color-mix(in srgb, #1a1822 70%, transparent);
+  --glass-ring: color-mix(in srgb, var(--brand-600) 55%, #ffffff20);
+
+  /* Hero wallpaper (dark) */
+  --hero-wallpaper-color: var(--brand-600);
+  --hero-wallpaper-opacity: 0.25;
+  --hero-wallpaper-scale: clamp(200px, 26vw, 380px);
+
+  /* Waves en dark */
+  --ns-wave-1: #6366f1;
+  --ns-wave-2: #38bdf8;
+  --ns-wave-3: #8b5cf6;
+
+  /* Section wallpapers (dark) */
+  --sec-services-color: var(--brand-600);
+  --sec-services-opacity: .26;
+  --sec-services-scale: clamp(180px, 24vw, 360px);
+
+  --sec-why-color: var(--brand-500);
+  --sec-why-opacity: .22;
+  --sec-why-scale: clamp(180px, 24vw, 360px);
+
+  --sec-profile-color: var(--brand-400);
+  --sec-profile-opacity: .20;
+  --sec-profile-scale: clamp(190px, 26vw, 380px);
+
+  --sec-testimonials-color: var(--brand-500);
+  --sec-testimonials-opacity: .22;
+  --sec-testimonials-scale: clamp(180px, 24vw, 360px);
+
+  --sec-faq-color: var(--brand-400);
+  --sec-faq-opacity: .16;
+  --sec-faq-scale: clamp(170px, 22vw, 340px);
+}
+
+/* =========================================================
+   GLOBAL
+   ========================================================= */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+::selection { background: var(--selection); color: var(--text-1); }
+
+/* Fondo base (útil en <main> o <body>) */
+.page-wash { background: var(--page-wash); }
+
+/* =========================================================
+   RITMO + LAYOUT
+   ========================================================= */
+.section {
+  padding-block: 2rem;
+  scroll-margin-top: var(--nav-offset);
+  position: relative;
+  isolation: isolate;
+}
+@media (min-width: 768px) { .section { padding-block: 2.75rem; } }
+@media (min-width: 1024px){ .section { padding-block: 3.25rem; } }
+
+.section--tight { padding-block: 1.75rem; }
+@media (min-width: 768px) { .section--tight { padding-block: 2.25rem; } }
+@media (min-width: 1024px){ .section--tight { padding-block: 2.75rem; } }
+
+.stagger > * + * { margin-top: 1.25rem; }
+@media (min-width: 768px) { .stagger > * + * { margin-top: 1.75rem; } }
+@media (min-width: 1024px){ .stagger > * + * { margin-top: 2rem; } }
+
+/* === Contenedores === */
+.container-narrow { max-width: 62rem; margin-inline: auto; }
+.container-wide   { max-width: 72rem; margin-inline: auto; }
+/* NUEVO: más estrecho para “¿Por qué elegirnos?” */
+.container-why    { max-width: clamp(46rem, 60vw, 58rem); margin-inline: auto; }
+
+.card {
+  background: var(--surface-0);
+  border: 1px solid var(--border-1);
+  border-radius: 1.25rem;
+  box-shadow: var(--elev-1);
+}
+
+.section-title { font-weight: 800; letter-spacing: .2px; color: var(--text-1); }
+.section-sub   { color: var(--text-2); font-size: .95rem; }
+
+.stripe     { background: var(--grad-lila); }
+.stripe--alt{ background: var(--grad-soft); }
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: saturate(120%) blur(6px);
+  -webkit-backdrop-filter: saturate(120%) blur(6px);
+  border: 1px solid var(--glass-ring)!important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.06);
+}
+
+/* =========================================================
+   TRANSICIONES ENTRE SECCIONES — FEATHER POR MÁSCARA
+   ========================================================= */
+.with-divider::after { display: none !important; } /* legacy off */
+:root { --feather-size: 72px; }
+
+.feather-edges{
+  -webkit-mask-image: linear-gradient(to bottom,
+      transparent 0,
+      black calc(var(--feather-size)),
+      black calc(100% - var(--feather-size)),
+      transparent 100%);
+  mask-image: linear-gradient(to bottom,
+      transparent 0,
+      black calc(var(--feather-size)),
+      black calc(100% - var(--feather-size)),
+      transparent 100%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+.feather-s{ --feather-size: 48px; }
+.feather-m{ --feather-size: 72px; } /* default */
+.feather-l{ --feather-size: 96px; }
+.join-fix{ margin-top: -1px; } /* mata hairlines sub-píxel */
+
+/* =========================================================
+   HERO (banda + patrón)
+   ========================================================= */
+.hero-band{
+  position:relative; outline:1px solid transparent;
+  background:linear-gradient(180deg,
+    color-mix(in oklab,var(--brand-50) 30%,transparent) 0%,
+    transparent 100%
+  );
+}
+.dark .hero-band{
+  background:linear-gradient(180deg,
+    color-mix(in oklab,var(--brand-600) 22%,transparent) 0%,
+    transparent 100%
+  );
+}
+.hero-wallpaper{ position:relative; isolation:isolate; overflow:visible; }
+.hero-wallpaper::before{
+  content:""; position:absolute; top:-4px; bottom:-4px; left:50%; right:50%;
+  margin-left:-50vw; margin-right:-50vw; pointer-events:none; z-index:0;
+  -webkit-mask-image:url("/brand/nutri-pattern-tile.svg"); mask-image:url("/brand/nutri-pattern-tile.svg");
+  -webkit-mask-repeat:repeat; mask-repeat:repeat;
+  -webkit-mask-size:var(--hero-wallpaper-scale); mask-size:var(--hero-wallpaper-scale);
+  -webkit-mask-position:center top; mask-position:center top;
+  background-color:var(--hero-wallpaper-color); opacity:var(--hero-wallpaper-opacity);
+}
+
+/* Suaviza borde inferior del HERO */
+.hero-join{ position:relative; isolation:isolate; }
+.hero-join::after{
+  content:""; position:absolute; left:0; right:0; bottom:-1px; height:110px; pointer-events:none; z-index:1;
+  background:linear-gradient(to top,
+    color-mix(in oklab, var(--surface-0) 88%, transparent) 0%,
+    transparent 65%);
+  filter: blur(.4px) saturate(.98);
+  opacity:.9;
+}
+.dark .hero-join::after{ opacity:.72; filter: blur(.6px) saturate(.96); }
+
+/* =========================================================
+   SECTION WALLPAPERS
+   ========================================================= */
+.section-wallpaper{ position:relative; isolation:isolate; }
+.section-wallpaper::before{
+  content:""; position:absolute; top:-4px; bottom:-4px; left:50%; right:50%;
+  margin-left:-50vw; margin-right:-50vw; z-index:0; pointer-events:none;
+  background-color: var(--sec-wallpaper-color, transparent);
+  opacity: var(--sec-wallpaper-opacity, 0);
+  -webkit-mask-image: url("/brand/section-services.svg");
+  mask-image: url("/brand/section-services.svg");
+  -webkit-mask-repeat: repeat; mask-repeat: repeat;
+  -webkit-mask-size: var(--sec-wallpaper-scale, 260px);
+  mask-size: var(--sec-wallpaper-scale, 260px);
+  -webkit-mask-position: center top; mask-position: center top;
+  animation: nsSecDrift 24s linear infinite alternate;
+  transform: translateZ(0);
+}
+.wall--services{    --sec-wallpaper-color: var(--sec-services-color);    --sec-wallpaper-opacity: var(--sec-services-opacity);    --sec-wallpaper-scale: var(--sec-services-scale); }
+.wall--why{         --sec-wallpaper-color: var(--sec-why-color);         --sec-wallpaper-opacity: var(--sec-why-opacity);         --sec-wallpaper-scale: var(--sec-why-scale); }
+.wall--profile{     --sec-wallpaper-color: var(--sec-profile-color);     --sec-wallpaper-opacity: var(--sec-profile-opacity);     --sec-wallpaper-scale: var(--sec-profile-scale); }
+.wall--testimonials{--sec-wallpaper-color: var(--sec-testimonials-color);--sec-wallpaper-opacity: var(--sec-testimonials-opacity);--sec-wallpaper-scale: var(--sec-testimonials-scale); }
+.wall--faq{         --sec-wallpaper-color: var(--sec-faq-color);         --sec-wallpaper-opacity: var(--sec-faq-opacity);         --sec-wallpaper-scale: var(--sec-faq-scale); }
+
+.wall--why.section-wallpaper::before{ -webkit-mask-image:url("/brand/section-why.svg"); mask-image:url("/brand/section-why.svg"); }
+.wall--profile.section-wallpaper::before{ -webkit-mask-image:url("/brand/section-profile.svg"); mask-image:url("/brand/section-profile.svg"); }
+.wall--testimonials.section-wallpaper::before{ -webkit-mask-image:url("/brand/section-testimonials.svg"); mask-image:url("/brand/section-testimonials.svg"); }
+.wall--faq.section-wallpaper::before{ -webkit-mask-image:url("/brand/section-faq.svg"); mask-image:url("/brand/section-faq.svg"); }
+
+@keyframes nsSecDrift { from{ transform:translateX(0);} to{ transform:translateX(18px);} }
+@media (prefers-reduced-motion: reduce){ .section-wallpaper::before{ animation:none!important; } }
+
+/* Feather superior del FOOTER */
+.footer-join{ position:relative; isolation:isolate; }
+.footer-join::before{
+  content:""; position:absolute; left:0; right:0; top:-1px; height:120px; pointer-events:none; z-index:1;
+  background:linear-gradient(to bottom,
+    color-mix(in oklab, var(--surface-0) 86%, transparent) 0%,
+    transparent 65%);
+  filter: blur(.4px) saturate(.98); opacity:.9;
+}
+.dark .footer-join::before{ opacity:.7; filter: blur(.6px) saturate(.96); }
+
+/* =========================================================
+   Motion / Micro-interacciones
+   ========================================================= */
+@media (prefers-reduced-motion:no-preference){
+  .hero-wallpaper::before{ animation:nutriWallpaperDrift 28s linear infinite alternate; }
+  @keyframes nutriWallpaperDrift{ from{ -webkit-mask-position:center 0px; mask-position:center 0px; } to{ -webkit-mask-position:center 42px; mask-position:center 42px; } }
+}
+
+/* Reveal */
+.reveal{
+  opacity:0; transform:translateY(14px) scale(.985); filter:saturate(.95) blur(.2px);
+  transition:opacity .6s ease, transform .6s cubic-bezier(.2,.65,.25,1), filter .6s ease;
+  will-change:transform, opacity, filter;
+}
+.reveal.is-in{ opacity:1; transform:none; filter:none; }
+
+/* =========================================================
+   WAVES — shift L→R / R→L con “choque”
+   ========================================================= */
+@keyframes nsWaveShiftLR{ 0%{transform:translateX(-22%);} 45%{transform:translateX(0);} 50%{transform:translateX(0) scaleX(.985) scaleY(1.02);} 55%{transform:translateX(0);} 100%{transform:translateX(22%);} }
+@keyframes nsWaveShiftRL{ 0%{transform:translateX(22%);} 45%{transform:translateX(0);} 50%{transform:translateX(0) scaleX(.985) scaleY(1.02);} 55%{transform:translateX(0);} 100%{transform:translateX(-22%);} }
+.ns-wave-lr, .ns-wave-rl{ will-change:transform; transform-origin:center; animation-timing-function:cubic-bezier(.22,.67,.24,1.06); animation-iteration-count:infinite; animation-direction:alternate; }
+.ns-wave-lr{ animation-name:nsWaveShiftLR; } .ns-wave-rl{ animation-name:nsWaveShiftRL; }
+.ns-speed-6s{animation-duration:6s;} .ns-speed-72s{animation-duration:7.2s;} .ns-speed-84s{animation-duration:8.4s;} .ns-speed-9s{animation-duration:9s;}
+@media (prefers-reduced-motion: reduce){ .ns-wave-lr, .ns-wave-rl{ animation:none!important; transform:none!important; } }

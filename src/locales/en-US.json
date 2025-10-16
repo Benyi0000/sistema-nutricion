@@ -1,0 +1,140 @@
+{
+  "common": { "login": "Login", "contact": "Contact" },
+  "hero": {
+    "title": "Transform your health with {{brand}}",
+    "lead": "Personalized meal plans, clinical monitoring, and nutritional calculations all in one place."
+  },
+  "whatsapp": {
+    "tooltip": "Write us on WhatsApp",
+    "greetings": { "morning": "Good morning!", "afternoon": "Good afternoon!", "evening": "Good evening!" },
+    "message": "Hello, I would like to get more information about a possible consultation. Thank you!"
+  },
+  "services": {
+    "title": "Our Services",
+    "items": [
+      { "title": "Nutritional Assessment", "desc": "Anthropometric measurements and calculation of indicators such as BMI and WHR.", "img": "/brand/assesment.png" },
+      { "title": "Meal Plan", "desc": "Personalized plans focused on health, performance, or well-being.", "img": "/brand/meal-plan.png" },
+      { "title": "Continuous Follow-Up", "desc": "Progress monitoring with reports and adaptive adjustments.", "img": "/brand/follow-up.png" }
+    ]
+  },
+  "why": {
+    "title": "Why Choose Us?",
+    "bullets": ["Personalized and professional care", "Online access to your history and plans", "Secure and easy-to-use platform"]
+  },
+  "testimonials": {
+    "title": "Patient Testimonials",
+    "items": [
+      { "name": "John R.", "meta": "Patient since 2023", "quote": "Thanks to NutriSalud I was able to improve my eating habits." },
+      { "name": "Lucy M.", "meta": "Patient since 2024", "quote": "The follow-up is excellent. I feel supported." },
+      { "name": "Sophia P.", "meta": "Amateur athlete", "quote": "The plan improved my performance and recovery." }
+    ]
+  },
+  "faq": {
+    "title": "Frequently Asked Questions",
+    "items": [
+      { "q": "How can I book an appointment?", "a": "Click on 'Contact' or the WhatsApp button and we’ll coordinate your appointment." },
+      { "q": "Does the first consultation include a plan?", "a": "It includes a complete assessment. The plan is delivered within 24–48h with clear goals." },
+      { "q": "What payment methods are accepted?", "a": "Cash, bank transfer, and cards (check current promotions)." }
+    ]
+  },
+  "cta": {
+    "title": "Start Your Transformation Today!",
+    "lead": "Take the first step towards a healthier life. Contact us and book your initial consultation.",
+    "button": "Message us on WhatsApp"
+  },
+  "contactCTA": {
+    "location": "Location",
+    "city": "Buenos Aires, Argentina",
+    "modes": "In-person and virtual appointments",
+    "whatsapp": "WhatsApp",
+    "phone": "+54 9 11 2345-6789",
+    "emailLabel": "Email",
+    "email": "leila.olmedo@nutrisalud.com",
+    "emailSla": "Reply within 24h",
+    "hoursLabel": "Hours",
+    "hoursWeek": "Mon to Fri: 9:00 – 19:00",
+    "hoursSat": "Saturday: 9:00 – 13:00",
+    "social": "Follow us on social media",
+    "formTitle": "Request Your Consultation",
+    "name": "First name",
+    "lastname": "Last name",
+    "emailField": "Email",
+    "phoneField": "Phone",
+    "goal": "What is your goal?",
+    "goalPlaceholder": "Select your goal",
+    "goals": ["Weight loss", "Sports performance", "Body recomposition", "Food education"],
+    "message": "Message",
+    "messagePH": "Tell us more about your goals, restrictions, etc.",
+    "disclaimer": "We’ll get back to you within 24 hours to schedule your initial consultation."
+  },
+  "footer": {
+    "brand": "NutriSalud",
+    "tagline": "Making the world healthier through simple, sustainable habits.",
+    "solutions": "Solutions",
+    "plans": "Plans",
+    "analytics": "Analytics",
+    "commerce": "Commerce",
+    "insights": "Insights",
+    "support": "Support",
+    "pricing": "Pricing",
+    "docs": "Documentation",
+    "guides": "Guides",
+    "status": "Status",
+    "company": "Company",
+    "about": "About",
+    "blog": "Blog",
+    "jobs": "Jobs",
+    "press": "Press",
+    "copyright": "© {{year}} NutriSalud. All rights reserved."
+  },
+  "profile": {
+    "title": "Meet the Professional",
+    "name": "Lic. Olmedo Leila",
+    "degree": "Bachelor in Nutrition (M.N. 310)",
+    "bio": "Transforming your relationship with food for a fuller and healthier life.\n\nAs a Nutritionist, graduated with dedication from the Universidad de la Cuenca del Plata in 2022, my mission goes beyond restrictive diets. I firmly believe that nutritional education is the most powerful tool for lasting and positive change.\n\nMy professional focus specializes in areas where nutrition becomes a key pillar of quality of life:\n\nObesity and Weight Management: I guide you through a comprehensive habit-change process, addressing the multifactorial causes of excess weight. Together, we’ll design a personalized, realistic, and sustainable plan focused on your overall health and well-being, not just the scale.\n\nSports Nutrition: Whether you’re an elite athlete or just looking to optimize your gym performance, I create nutritional strategies adapted to your goals, helping you improve energy, endurance, and recovery.\n\nChild Nutrition and Food Education: I am passionate about building a healthier future generation. I work with children and families to foster a positive relationship with food from childhood, with fun and educational plans tailored to each growth stage, addressing picky eating, childhood overweight, and more.\n\nMy Commitment to You:\n\nMy practice is based on active listening, empathy, and science. I use clear and approachable language, avoiding prohibitions and fostering autonomy. I believe that each person is unique, so your tastes, lifestyle, and goals will be the foundation of your nutrition plan.\n\nI am here to guide, educate, and support you every step of the way toward a healthier and happier version of yourself.\n\nReady to begin? Let’s book a consultation and talk about your goals.",
+    "photo": "/brand/nutri-leila.png",
+    "tags": ["Food Education", "Obesity", "Sports", "Children"]
+  },
+  "profilesTitle": "Meet our professionals",
+  "profiles": [
+    {
+      "id": "leila",
+      "name": "Leila Olmedo, RD",
+      "degree": "Bachelor in Nutrition (M.N. 310)",
+      "photo": "/brand/nutri-leila.png",
+      "tags": ["Food Education", "Obesity", "Sports", "Children"],
+      "lead": "Evidence-based nutrition education.",
+      "bullets": [
+        "Personalized, realistic, sustainable plan",
+        "Human and close follow-up",
+        "Goal-driven reports & adjustments"
+      ]
+    },
+    {
+      "id": "martin",
+      "name": "Martín Álvarez, RD",
+      "degree": "Sports Nutrition Specialist",
+      "photo": "/brand/nutri-martin.png",
+      "tags": ["Sports", "Strength", "Endurance"],
+      "lead": "High-performance fueling without sacrificing health.",
+      "bullets": [
+        "Pre/Intra/Post training periodization",
+        "Strength, cross and endurance strategies",
+        "Long-term adherence education"
+      ]
+    },
+    {
+      "id": "camila",
+      "name": "Camila Rossi, RD",
+      "degree": "Pediatric & Family Nutrition",
+      "photo": "/brand/nutri-camila.png",
+      "tags": ["Children", "Family", "Picky eating"],
+      "lead": "Positive childhood eating at home.",
+      "bullets": [
+        "Stage-based growth plans",
+        "Tools for picky eating",
+        "Healthy family habits"
+      ]
+    }
+  ]
+}
