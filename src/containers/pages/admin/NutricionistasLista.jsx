@@ -78,7 +78,10 @@ export default function NutricionistasLista() {
                 {items.map(n => (
                 <tr key={n.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 text-sm">{n.dni}</td>
-                    <td className="px-3 py-2 text-sm">{n.last_name}, {n.first_name}</td>
+                    {/* --- MODIFICADO --- */}
+                    {/* Usamos 'apellido' y 'nombre' en lugar de 'last_name' y 'first_name' */}
+                    <td className="px-3 py-2 text-sm">{n.apellido}, {n.nombre}</td>
+                    {/* --- FIN MODIFICADO --- */}
                     <td className="px-3 py-2 text-sm">{n.email}</td>
                     <td className="px-3 py-2 text-sm">{n.matricula || '-'}</td>
                     <td className="px-3 py-2 text-sm">{n.telefono || '-'}</td>

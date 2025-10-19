@@ -30,7 +30,11 @@ class UserAccountManager(BaseUserManager):
         user = self.model(dni=dni, email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
-        UserSecurity.objects.get_or_create(user=user)
+        
+        # --- ELIMINADO ---
+        # Se eliminó la creación de UserSecurity, ya que sus campos se movieron a UserAccount
+        # UserSecurity.objects.get_or_create(user=user)
+        
         return user
 
     def create_user(self, dni, email, password=None, **extra_fields):
@@ -59,23 +63,33 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
     )
     email = models.EmailField(unique=True, validators=[EmailValidator()])
 
-    first_name = models.CharField("nombre", max_length=150, blank=True)
-    last_name = models.CharField("apellido", max_length=150, blank=True)
+    # --- ELIMINADOS ---
+    # Se eliminan los campos de nombre para que la info sensible
+    # resida únicamente en los modelos de perfil (Paciente, Nutricionista)
+    # first_name = models.CharField("nombre", max_length=150, blank=True)
+    # last_name = models.CharField("apellido", max_length=150, blank=True)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
 
     must_change_password = models.BooleanField(default=True)
+    
+    # --- AÑADIDO ---
+    # Campo movido desde el extinto modelo UserSecurity
+    last_password_change = models.DateTimeField(null=True, blank=True)
 
     objects = UserAccountManager()
 
     USERNAME_FIELD = "dni"
-    REQUIRED_FIELDS = ["email", "first_name", "last_name"]
+    
+    # --- MODIFICADO ---
+    # Se quitan first_name y last_name de los campos requeridos
+    REQUIRED_FIELDS = ["email"]
 
     class Meta:
-        verbose_name = "usuario"
-        verbose_name_plural = "usuarios"
+        verbose_name = "cuenta de usuario"    # --- MODIFICADO ---
+        verbose_name_plural = "cuentas de usuario" # --- MODIFICADO ---
         indexes = [
             models.Index(fields=["dni"]),
             models.Index(fields=["email"]),
@@ -84,9 +98,11 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return f"{self.dni} · {self.email}"
 
-    @property
-    def full_name(self):
-        return f"{self.first_name} {self.last_name}".strip()
+    # --- ELIMINADO ---
+    # Esta propiedad ya no tiene sentido aquí
+    # @property
+    # def full_name(self):
+    #     return f"{self.first_name} {self.last_name}".strip()
 
     def save(self, *args, **kwargs):
         self.dni = normalize_dni(self.dni)
@@ -94,17 +110,19 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
         super().save(*args, **kwargs)
 
 
-class UserSecurity(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="security")
-    must_change_password = models.BooleanField(default=True)
-    last_password_change = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        verbose_name = "seguridad de usuario"
-        verbose_name_plural = "seguridad de usuarios"
-
-    def __str__(self):
-        return f"Security {self.user_id}"
+# --- ELIMINADO ---
+# Este modelo era redundante. Sus campos se movieron a UserAccount.
+# class UserSecurity(models.Model):
+#     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="security")
+#     must_change_password = models.BooleanField(default=True)
+#     last_password_change = models.DateTimeField(null=True, blank=True)
+#
+#     class Meta:
+#         verbose_name = "seguridad de usuario"
+#         verbose_name_plural = "seguridad de usuarios"
+#
+#     def __str__(self):
+#         return f"Security {self.user_id}"
 
 
 # -------- Perfiles --------
@@ -121,6 +139,13 @@ class Especialidad(models.Model):
 
 class Nutricionista(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="nutricionista")
+    
+    # --- AÑADIDOS ---
+    # Se añaden campos de nombre para que este perfil
+    # sea la fuente de verdad de sus datos personales.
+    nombre = models.CharField("nombre", max_length=150, blank=True)
+    apellido = models.CharField("apellido", max_length=150, blank=True)
+    
     matricula = models.CharField(max_length=50, unique=True, null=True, blank=True)
     especialidades = models.ManyToManyField(Especialidad, blank=True)
     telefono = models.CharField(max_length=20, blank=True, null=True)
@@ -130,8 +155,15 @@ class Nutricionista(models.Model):
         verbose_name = "nutricionista"
         verbose_name_plural = "nutricionistas"
 
+    # --- MODIFICADO ---
+    # Ahora usa sus propios campos de nombre
     def __str__(self):
-        return self.user.full_name or self.user.dni
+        return self.full_name or self.user.dni
+
+    # --- AÑADIDO ---
+    @property
+    def full_name(self):
+        return f"{self.nombre} {self.apellido}".strip()
 
 
 class Genero(models.TextChoices):
@@ -154,7 +186,13 @@ class Paciente(models.Model):
         verbose_name_plural = "pacientes"
 
     def __str__(self):
-        return f"{self.apellido}, {self.nombre}".strip() or self.user.dni
+        return self.full_name or self.user.dni
+
+    # --- AÑADIDO ---
+    # (Buena práctica añadir esta propiedad también aquí)
+    @property
+    def full_name(self):
+        return f"{self.nombre} {self.apellido}".strip()
 
 
 class AsignacionNutricionistaPaciente(models.Model):
@@ -175,8 +213,6 @@ class AsignacionNutricionistaPaciente(models.Model):
     
 
 #Modelos Preguntas %% consulta
-
-# apps/user/models.py
 
 # --- Tipos de pregunta ---
 class TipoPregunta(models.TextChoices):

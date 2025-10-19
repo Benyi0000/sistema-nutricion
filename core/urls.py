@@ -12,6 +12,8 @@ urlpatterns = [
     path('auth/', include('djoser.urls')),
     path('auth/', include('djoser.urls.jwt')),
     path('auth/', include('djoser.social.urls')),   # <-- reemplaza social_django
+    path('auth/', include('djoser.social.urls')), # <--- Añade esta línea
+    path('social/', include('social_django.urls', namespace='social')),
 
     # CKEditor uploader
     path('ckeditor/', include('ckeditor_uploader.urls')),

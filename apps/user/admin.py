@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 from .models import (
-    UserAccount, UserSecurity,
+    UserAccount, 
     Nutricionista, Paciente, Especialidad, AsignacionNutricionistaPaciente
 )
 from .models import Pregunta, Consulta
@@ -11,8 +11,8 @@ from .models import Pregunta, Consulta
 @admin.register(UserAccount)
 class UserAdmin(BaseUserAdmin):
     ordering = ("dni",)
-    list_display = ("dni", "email", "first_name", "last_name", "is_staff", "is_active", "must_change_password")
-    search_fields = ("dni", "email", "first_name", "last_name")
+    list_display = ("dni", "email", "is_staff", "is_active", "must_change_password")
+    search_fields = ("dni", "email")
     readonly_fields = ("date_joined",)
 
     fieldsets = (
@@ -29,7 +29,6 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
 
-admin.site.register(UserSecurity)
 admin.site.register(Nutricionista)
 admin.site.register(Paciente)
 admin.site.register(AsignacionNutricionistaPaciente)

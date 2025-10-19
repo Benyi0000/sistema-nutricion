@@ -23,21 +23,50 @@ from .utils import normalize_respuestas
 User = get_user_model()
 
 
+# --- Serializadores de Perfil ---
+# (Los movemos aquí para que UserDetailSerializer pueda usarlos)
+
+class NutricionistaSerializer(serializers.ModelSerializer):
+    """
+    Serializador para el perfil de Nutricionista (usado para anidar)
+    """
+    class Meta:
+        model = Nutricionista
+        fields = ('id', 'nombre', 'apellido', 'matricula', 'telefono', 'foto_perfil', 'especialidades')
+
+
+class PacienteSerializer(serializers.ModelSerializer):
+    """
+    Serializador para el perfil de Paciente (usado para anidar)
+    """
+    class Meta:
+        model = Paciente
+        fields = ('id', 'nombre', 'apellido', 'fecha_nacimiento', 'genero', 'telefono', 'foto_perfil')
+
+
 class UserCreateSerializer(BaseCreate):
     class Meta(BaseCreate.Meta):
         model = User
-        fields = ("id", "dni", "email", "first_name", "last_name", "password")
+        fields = ("id", "dni", "email", "password")
 
 
-class UserDetailSerializer(BaseUser):
+class UserDetailSerializer(serializers.ModelSerializer): 
+    """
+    Serializador de detalle de Usuario para /auth/users/me/
+    """
     role = serializers.SerializerMethodField()
+    
+    nutricionista = NutricionistaSerializer(read_only=True)
+    paciente = PacienteSerializer(read_only=True)
 
-    class Meta(BaseUser.Meta):
+    class Meta:
         model = User
         fields = (
-            "id", "dni", "email", "first_name", "last_name",
+            "id", "dni", "email",
             "must_change_password", "is_staff", "role",
+            "nutricionista", "paciente",
         )
+        read_only_fields = ("dni", "email", "is_staff", "role", "nutricionista", "paciente")
 
     def get_role(self, obj):
         if obj.is_staff:
@@ -53,8 +82,8 @@ class NutricionistaAltaSerializer(serializers.Serializer):
     # Datos de usuario
     dni = serializers.CharField(max_length=10)
     email = serializers.EmailField()
-    first_name = serializers.CharField(max_length=150)
-    last_name = serializers.CharField(max_length=150)
+    nombre = serializers.CharField(max_length=150)
+    apellido = serializers.CharField(max_length=150)
     password = serializers.CharField(write_only=True, min_length=8)
 
     # Perfil Nutricionista
@@ -86,8 +115,6 @@ class NutricionistaAltaSerializer(serializers.Serializer):
         user = User.objects.create_user(
             dni=validated["dni"],
             email=validated["email"],
-            first_name=validated["first_name"],
-            last_name=validated["last_name"],
             password=validated["password"],
             is_staff=False,
         )
@@ -98,6 +125,8 @@ class NutricionistaAltaSerializer(serializers.Serializer):
         # 2) Perfil Nutricionista
         nutri = Nutricionista.objects.create(
             user=user,
+            nombre=validated.get("nombre", ""),
+            apellido=validated.get("apellido", ""),
             matricula=validated.get("matricula", "") or "",
             telefono=validated.get("telefono", "") or "",
         )
@@ -127,18 +156,28 @@ class EspecialidadSerializer(serializers.ModelSerializer):
         fields = ("id", "nombre")
 
 
+# ---------------------------------------------------------------------
+# ¡¡¡AQUÍ ESTÁ LA CORRECCIÓN!!! ---
+# ---------------------------------------------------------------------
 class NutricionistaListSerializer(serializers.ModelSerializer):
-    dni = serializers.CharField(source="user.dni")
-    email = serializers.EmailField(source="user.email")
-    first_name = serializers.CharField(source="user.first_name")
-    last_name = serializers.CharField(source="user.last_name")
+    dni = serializers.CharField(source="user.dni", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+    
+    # --- MODIFICADO ---
+    # Leemos 'nombre' y 'apellido' directamente del modelo Nutricionista.
+    # No necesitamos 'source' porque los campos se llaman igual.
+    nombre = serializers.CharField(read_only=True)
+    apellido = serializers.CharField(read_only=True)
+    
     especialidades = serializers.SerializerMethodField()
 
     class Meta:
         model = Nutricionista
+        # --- MODIFICADO ---
+        # Reemplazamos 'first_name' y 'last_name' por 'nombre' y 'apellido'
         fields = (
             "id",
-            "dni", "email", "first_name", "last_name",
+            "dni", "email", "nombre", "apellido",
             "matricula", "telefono", "foto_perfil",
             "especialidades",
         )
@@ -342,29 +381,21 @@ class PreguntaPersonalizadaCreateSerializer(serializers.ModelSerializer):
         )
 
 
-
-
-
-
 # ---------------------------------------------------------------------
 # Pacientes (list/detail para vistas)
 # ---------------------------------------------------------------------
 
 class PacienteListSerializer(serializers.ModelSerializer):
-    dni = serializers.CharField(source="user.dni")
-    email = serializers.EmailField(source="user.email")
-    nombre = serializers.CharField()
-    apellido = serializers.CharField()
-    first_name = serializers.CharField(source="nombre", read_only=True)
-    last_name = serializers.CharField(source="apellido", read_only=True)
+    dni = serializers.CharField(source="user.dni", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
     edad = serializers.SerializerMethodField()
 
     class Meta:
         model = Paciente
+        # Eliminamos 'first_name' y 'last_name' que eran redundantes
         fields = (
             "id", "dni", "email",
             "nombre", "apellido",
-            "first_name", "last_name",
             "telefono", "fecha_nacimiento", "genero", "edad",
         )
 
@@ -373,8 +404,8 @@ class PacienteListSerializer(serializers.ModelSerializer):
 
 
 class PacienteDetailSerializer(serializers.ModelSerializer):
-    dni = serializers.CharField(source="user.dni")
-    email = serializers.EmailField(source="user.email")
+    dni = serializers.CharField(source="user.dni", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
     edad = serializers.SerializerMethodField()
 
     class Meta:
@@ -397,8 +428,8 @@ class ConsultaInicialSerializer(serializers.Serializer):
     # datos esenciales para autogenerar paciente
     dni = serializers.CharField(max_length=10)
     email = serializers.EmailField(required=False, allow_blank=True)
-    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
-    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    nombre = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    apellido = serializers.CharField(max_length=150, required=False, allow_blank=True)
     password = serializers.CharField(write_only=True, min_length=6, required=False, allow_blank=True)
 
     telefono = serializers.CharField(max_length=20, required=False, allow_blank=True)
@@ -423,8 +454,6 @@ class ConsultaInicialSerializer(serializers.Serializer):
             user = User.objects.create_user(
                 dni=dni,
                 email=data.get("email") or "",
-                first_name=data.get("first_name") or "",
-                last_name=data.get("last_name") or "",
                 password=pwd,
                 is_staff=False,
             )
@@ -435,11 +464,10 @@ class ConsultaInicialSerializer(serializers.Serializer):
             password_inicial = pwd
         else:
             changed = False
-            for f in ("email", "first_name", "last_name"):
-                val = data.get(f)
-                if val not in (None, "") and getattr(user, f) != val:
-                    setattr(user, f, val)
-                    changed = True
+            new_email = data.get("email")
+            if new_email not in (None, "") and getattr(user, 'email') != new_email:
+                 setattr(user, 'email', new_email)
+                 changed = True
             if changed:
                 user.save()
 
@@ -447,18 +475,18 @@ class ConsultaInicialSerializer(serializers.Serializer):
         if paciente is None:
             paciente = Paciente.objects.create(
                 user=user,
-                nombre=data.get("first_name") or "",
-                apellido=data.get("last_name") or "",
+                nombre=data.get("nombre") or "",
+                apellido=data.get("apellido") or "",
                 telefono=data.get("telefono") or "",
                 fecha_nacimiento=data.get("fecha_nacimiento"),
                 genero=data.get("genero", Paciente._meta.get_field("genero").default),
             )
         else:
             updated = False
-            if data.get("first_name") and paciente.nombre != data["first_name"]:
-                paciente.nombre = data["first_name"]; updated = True
-            if data.get("last_name") and paciente.apellido != data["last_name"]:
-                paciente.apellido = data["last_name"]; updated = True
+            if data.get("nombre") and paciente.nombre != data["nombre"]:
+                paciente.nombre = data["nombre"]; updated = True
+            if data.get("apellido") and paciente.apellido != data["apellido"]:
+                paciente.apellido = data["apellido"]; updated = True
             if updated:
                 paciente.save(update_fields=["nombre", "apellido"])
 

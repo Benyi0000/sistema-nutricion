@@ -1,3 +1,5 @@
+// src/containers/pages/admin/Nutricionistas.jsx
+
 import { useDispatch, useSelector } from 'react-redux';
 import { useState } from 'react';
 import { crearNutricionista } from '../../../features/nutri/nutriAdminSlice';
@@ -6,29 +8,37 @@ export default function NutricionistasAdmin() {
     const dispatch = useDispatch();
     const { status, error, lastCreated } = useSelector(s => s.nutriAdmin);
 
+    // --- MODIFICADO ---
+    // Cambiamos el estado para que coincida con la API (nombre, apellido)
     const [form, setForm] = useState({
-        dni: '', email: '', first_name: '', last_name: '',
+        dni: '', email: '', nombre: '', apellido: '', // <-- CORREGIDO
         password: '', matricula: '', telefono: '',
         especialidades_raw: '' // "1,2,3"
     });
+    // --- FIN MODIFICADO ---
 
     const onChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
     const onSubmit = async (e) => {
         e.preventDefault();
+
+        // --- MODIFICADO ---
+        // Creamos el payload con 'nombre' y 'apellido'
         const payload = {
-        dni: form.dni,
-        email: form.email,
-        first_name: form.first_name,
-        last_name: form.last_name,
-        password: form.password,
-        matricula: form.matricula,
-        telefono: form.telefono,
+            dni: form.dni,
+            email: form.email,
+            nombre: form.nombre,         // <-- CORREGIDO
+            apellido: form.apellido,       // <-- CORREGIDO
+            password: form.password,
+            matricula: form.matricula,
+            telefono: form.telefono,
         };
+        // --- FIN MODIFICADO ---
+
         const ids = String(form.especialidades_raw || '')
-        .split(',')
-        .map(s => s.trim()).filter(Boolean)
-        .map(n => Number(n)).filter(Number.isInteger);
+            .split(',')
+            .map(s => s.trim()).filter(Boolean)
+            .map(n => Number(n)).filter(Number.isInteger);
         if (ids.length) payload.especialidades_ids = ids;
 
         await dispatch(crearNutricionista(payload));
@@ -58,17 +68,20 @@ export default function NutricionistasAdmin() {
             {fieldError('email') && <p className="text-red-600 text-xs mt-1">{fieldError('email')}</p>}
             </div>
 
+            {/* --- MODIFICADO --- */}
+            {/* Cambiamos los 'name' y 'value' a 'nombre' y 'apellido' */}
             <div>
-            <input className="border p-2 rounded w-full" name="first_name" placeholder="Nombre"
-                    value={form.first_name} onChange={onChange} required />
-            {fieldError('first_name') && <p className="text-red-600 text-xs mt-1">{fieldError('first_name')}</p>}
+            <input className="border p-2 rounded w-full" name="nombre" placeholder="Nombre"
+                    value={form.nombre} onChange={onChange} required />
+            {fieldError('nombre') && <p className="text-red-600 text-xs mt-1">{fieldError('nombre')}</p>}
             </div>
 
             <div>
-            <input className="border p-2 rounded w-full" name="last_name" placeholder="Apellido"
-                    value={form.last_name} onChange={onChange} required />
-            {fieldError('last_name') && <p className="text-red-600 text-xs mt-1">{fieldError('last_name')}</p>}
+            <input className="border p-2 rounded w-full" name="apellido" placeholder="Apellido"
+                    value={form.apellido} onChange={onChange} required />
+            {fieldError('apellido') && <p className="text-red-600 text-xs mt-1">{fieldError('apellido')}</p>}
             </div>
+            {/* --- FIN MODIFICADO --- */}
 
             <div>
             <input className="border p-2 rounded w-full" name="password" type="password"

@@ -1,3 +1,5 @@
+# apps/user/views.py
+
 from rest_framework import status, permissions, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -10,11 +12,12 @@ from .serializers import (
     EspecialidadSerializer,
     NutricionistaListSerializer,
 )
-from .models import Especialidad
-from .serializers import (
-    NutricionistaAltaSerializer,
-    EspecialidadSerializer,
-)
+# --- LIMPIEZA: Imports duplicados eliminados ---
+# from .models import Especialidad
+# from .serializers import (
+#     NutricionistaAltaSerializer,
+#     EspecialidadSerializer,
+# )
 from rest_framework import permissions, status
 from .models import Pregunta, Consulta, TipoConsulta
 from .serializers import (
@@ -32,19 +35,6 @@ from .models import Paciente
 from .serializers import PacienteDetailSerializer
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 # GET /api/user/especialidades/
 class EspecialidadListView(generics.ListAPIView):
     queryset = Especialidad.objects.all().order_by('nombre')
@@ -52,15 +42,8 @@ class EspecialidadListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]  # usa IsAdminUser si querés
 
 
-
-
-
 # POST /api/user/nutricionistas/
 # Crea usuario + perfil Nutricionista
-
-
-
-
 class NutricionistaAltaView(APIView):
     permission_classes = [permissions.IsAdminUser]  # solo admin puede listar/crear
 
@@ -78,8 +61,11 @@ class NutricionistaAltaView(APIView):
             qs = qs.filter(
                 Q(user__dni__icontains=search) |
                 Q(user__email__icontains=search) |
-                Q(user__first_name__icontains=search) |
-                Q(user__last_name__icontains=search) |
+                # --- MODIFICADO ---
+                # Buscamos en los campos 'nombre' y 'apellido' del modelo Nutricionista
+                Q(nombre__icontains=search) |
+                Q(apellido__icontains=search) |
+                # --- FIN MODIFICADO ---
                 Q(matricula__icontains=search) |
                 Q(telefono__icontains=search) |
                 Q(especialidades__nombre__icontains=search)
@@ -94,7 +80,9 @@ class NutricionistaAltaView(APIView):
         except ValueError:
             page_size = 10
 
-        qs = qs.order_by('user__last_name', 'user__first_name')
+        # --- MODIFICADO ---
+        # Ordenamos por los campos 'apellido' y 'nombre' del modelo Nutricionista
+        qs = qs.order_by('apellido', 'nombre')
         paginator = Paginator(qs, page_size)
         page_obj = paginator.get_page(page)
 
@@ -234,8 +222,8 @@ from .serializers import (
 )
 
 class PreguntaPersonalizadaViewSet(mixins.CreateModelMixin,
-                                    mixins.ListModelMixin,
-                                    viewsets.GenericViewSet):
+                                     mixins.ListModelMixin,
+                                     viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
