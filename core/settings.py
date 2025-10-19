@@ -5,7 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 
 env = environ.Env()
-environ.Env.read_env()
+environ.Env.read_env(os.path.join(Path(__file__).resolve().parent.parent, '.env'))
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -15,10 +15,10 @@ DEBUG = env.bool("DEBUG", default=True)
 
 # DEV lists (coma-separado en tu .env)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS_DEV", default=["*"])
-CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS_DEV", default=["http://localhost:5173"])
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS_DEV", default=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8000", "http://127.0.0.1:8000"])
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS_DEV",
-    default=["http://localhost:5173", "http://127.0.0.1:8000"],
+    default=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8000", "http://127.0.0.1:8000"],
 )
 
 # --- Apps ---
@@ -207,8 +207,8 @@ AUTHENTICATION_BACKENDS = (
 SOCIAL_AUTH_USER_MODEL = AUTH_USER_MODEL
 SOCIAL_AUTH_URL_NAMESPACE = 'social'
 SOCIAL_AUTH_REDIRECT_IS_HTTPS = not DEBUG
-SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = env("GOOGLE_CLIENT_ID", default="879676093619-vacm88jq32dpihgqrj06muu0p6p5e6oi.apps.googleusercontent.com")
-SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = env("GOOGLE_CLIENT_SECRET", default="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")
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = env("GOOGLE_CLIENT_ID")
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = env("GOOGLE_CLIENT_SECRET")
 
 SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
     'https://www.googleapis.com/auth/userinfo.email',
