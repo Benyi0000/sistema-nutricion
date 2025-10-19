@@ -12,6 +12,7 @@ import AdminLayout from './hocs/layouts/AdminLayout';
 import DashboardAdmin from './containers/pages/admin/Dashboard';
 import NutricionistasLista from './containers/pages/admin/NutricionistasLista';
 import NutricionistasAdmin from './containers/pages/admin/Nutricionistas';
+import ConfiguracionAdminPage from './containers/pages/admin/Configuracion';
 
 import NutriLayout from './hocs/layouts/NutriLayout';
 import DashboardNutri from './containers/pages/nutricionista/Dashboard';
@@ -45,6 +46,7 @@ export default function AppRoutes() {
             <Route index element={<DashboardAdmin />} />
             <Route path="nutricionistas" element={<NutricionistasLista />} />
             <Route path="nutricionistas/crear" element={<NutricionistasAdmin />} />
+            <Route path="configuracion" element={<ConfiguracionAdminPage />} />
         </Route>
 
         {/* Nutricionista anidado */}

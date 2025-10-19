@@ -28,7 +28,10 @@ class UserAccountManager(BaseUserManager):
         email = self.normalize_email(email)
 
         user = self.model(dni=dni, email=email, **extra_fields)
-        user.set_password(password)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()  # Para usuarios OAuth sin password
         user.save(using=self._db)
         
         # --- ELIMINADO ---

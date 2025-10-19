@@ -1,10 +1,10 @@
 import { LockClosedIcon } from '@heroicons/react/20/solid';
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { login, fetchMe } from '../../../features/auth/authSlice';
+import { login, fetchMe, setTokens } from '../../../features/auth/authSlice';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../api/client';
-import { GoogleLogin } from '@react-oauth/google'; // 1. Importa el componente de la librería
+import { useGoogleLogin } from '@react-oauth/google';
 
 function Login() {
     const dispatch = useDispatch();
@@ -33,44 +33,56 @@ function Login() {
         }
     };
 
-    // --- MANEJADOR DE GOOGLE SIGN-IN SIMPLIFICADO ---
-    // Esta función es llamada por el componente <GoogleLogin> en caso de éxito.
-    const handleGoogleSignIn = async (credentialResponse) => {
+    const handleGoogleSignIn = async (tokenResponse) => {
         setGoogleStatus('loading');
         setGoogleError(null);
-        console.log("Google Sign-In credential:", credentialResponse.credential);
+        console.log("Google Sign-In token response:", tokenResponse);
 
         try {
-            // Envía el token a tu endpoint de Djoser.
-            // Djoser espera el token JWT de Google bajo la clave "access_token".
-            const res = await api.post('/auth/o/google-oauth2/', {
-                access_token: credentialResponse.credential 
+            // Envía el access_token a nuestro endpoint personalizado
+            console.log("Enviando petición a /api/user/google-login/ con:", {
+                access_token: tokenResponse.access_token.substring(0, 20) + "..."
+            });
+            
+            const res = await api.post('/api/user/google-login/', {
+                access_token: tokenResponse.access_token
             });
 
+            console.log("Respuesta exitosa del backend:", res.data);
+            
             const { access: appAccess, refresh: appRefresh } = res.data;
             localStorage.setItem('access', appAccess);
             localStorage.setItem('refresh', appRefresh);
             api.defaults.headers.common.Authorization = `JWT ${appAccess}`;
 
+            // Actualizar el estado de Redux con los tokens
+            dispatch(setTokens({ access: appAccess, refresh: appRefresh }));
+
+            // Obtener información del usuario
             await dispatch(fetchMe()).unwrap();
             setGoogleStatus('succeeded');
-            // La redirección se maneja en el useEffect de abajo
-
+            
+            // La redirección se manejará automáticamente por el useEffect
         } catch (err) {
             console.error("Google Sign-In backend error:", err);
+            console.error("Error response data:", err.response?.data);
+            console.error("Error non_field_errors:", err.response?.data?.non_field_errors);
+            console.error("Error response status:", err.response?.status);
+            console.error("Error response headers:", err.response?.headers);
             setGoogleStatus('failed');
-            setGoogleError(err.response?.data?.detail || err.message || 'Error al iniciar sesión con Google.');
+            setGoogleError(err.response?.data?.detail || err.response?.data?.non_field_errors?.[0] || err.message || 'Error al iniciar sesión con Google.');
         }
     };
 
-    // --- Manejador para errores de Google ---
-    const handleGoogleError = () => {
-        console.error("Google Sign-In Error");
-        setGoogleStatus('failed');
-        setGoogleError('Hubo un problema con la autenticación de Google.');
-    };
+    const googleLogin = useGoogleLogin({
+        onSuccess: handleGoogleSignIn,
+        onError: () => {
+            console.error("Google Sign-In Error");
+            setGoogleStatus('failed');
+            setGoogleError('Hubo un problema con la autenticación de Google.');
+        }
+    });
 
-    // --- LÓGICA DE REDIRECCIÓN (sin cambios) ---
     useEffect(() => {
         if (access && !user && status !== 'loading') {
             dispatch(fetchMe());
@@ -167,17 +179,16 @@ function Login() {
                     </div>
                 </div>
 
-                {/* 2. Reemplaza el div manual con el componente GoogleLogin */}
                 <div className="flex justify-center">
-                    <GoogleLogin
-                        onSuccess={handleGoogleSignIn}
-                        onError={handleGoogleError}
-                        width="300"
-                        text="signin_with"
-                        shape="rectangular"
-                        theme="outline"
-                        size="large"
-                    />
+                    <button
+                        onClick={() => googleLogin()}
+                        className="flex items-center justify-center w-full max-w-xs mx-auto bg-white border border-gray-300 rounded-md shadow-sm px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                        <svg className="w-5 h-5 mr-2" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+                            <path fill="currentColor" d="M488 261.8C488 403.3 381.5 512 244 512 109.8 512 0 402.2 0 256S109.8 0 244 0c73.2 0 136.2 29.3 181.9 75.9L368.4 135.5c-29.9-28.6-69.9-46.6-124.4-46.6-94.3 0-171.3 76.9-171.3 171.3s77 171.3 171.3 171.3c108.5 0 143.2-85.4 148.8-124.3H244v-90.8h244z"></path>
+                        </svg>
+                        <span>Iniciar sesión con Google</span>
+                    </button>
                 </div>
 
                  {googleStatus === 'loading' && <p className="text-gray-500 text-sm text-center mt-2">Iniciando sesión con Google...</p>}

@@ -153,8 +153,8 @@ class NutricionistaAltaSerializer(serializers.Serializer):
             user=user,
             nombre=validated.get("nombre", ""),
             apellido=validated.get("apellido", ""),
-            matricula=validated.get("matricula", "") or "",
-            telefono=validated.get("telefono", "") or "",
+            matricula=validated.get("matricula") or None,
+            telefono=validated.get("telefono") or None,
         )
 
         # 3) Especialidades M2M

@@ -14,6 +14,9 @@ from .views import (
     PacientesNutricionistaListView,
     PacienteDetailView,
     PreguntaPersonalizadaViewSet,  # <- ViewSet para banco personalizado
+    custom_disconnect,
+    link_google_account,
+    google_oauth_login,
 )
 
 # Router para endpoints de preguntas personalizadas (list/create)
@@ -25,6 +28,9 @@ router.register(
 )
 
 urlpatterns = [
+    path("google-login/", google_oauth_login, name="google_oauth_login"),
+    path("link-google/", link_google_account, name="link_google_account"),
+    path("disconnect/<str:backend>/", custom_disconnect, name="custom_disconnect"),
     path("pacientes/<int:id>/", PacienteDetailView.as_view()),
     path("pacientes/", PacientesNutricionistaListView.as_view()),
     path("preguntas/", PreguntasListView.as_view()),

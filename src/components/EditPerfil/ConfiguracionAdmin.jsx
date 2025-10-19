@@ -4,29 +4,21 @@ import api from '../../api/client';
 import { fetchMe } from '../../features/auth/authSlice';
 import { googleLogout, useGoogleLogin } from '@react-oauth/google';
 
-function ConfiguracionUsuario() {
+function ConfiguracionAdmin() {
     const dispatch = useDispatch();
     const { user } = useSelector(state => state.auth);
     const [formData, setFormData] = useState({
-        nombre: '',
-        apellido: '',
-        matricula: '',
-        telefono: '',
+        first_name: '',
+        last_name: '',
     });
     const [linkingStatus, setLinkingStatus] = useState('idle');
     const [linkingError, setLinkingError] = useState(null);
 
     useEffect(() => {
-        dispatch(fetchMe());
-    }, [dispatch]);
-
-    useEffect(() => {
-        if (user && user.nutricionista) {
+        if (user) {
             setFormData({
-                nombre: user.nutricionista.nombre || '',
-                apellido: user.nutricionista.apellido || '',
-                matricula: user.nutricionista.matricula || '',
-                telefono: user.nutricionista.telefono || '',
+                first_name: user.first_name || '',
+                last_name: user.last_name || '',
             });
         }
     }, [user]);
@@ -38,7 +30,8 @@ function ConfiguracionUsuario() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await api.patch('/api/user/nutricionistas/me/', formData);
+            // Usamos el endpoint de Djoser para el usuario actual
+            const response = await api.patch('/auth/users/me/', formData);
             if (response.status === 200) {
                 dispatch(fetchMe());
                 alert('Perfil actualizado con éxito.');
@@ -100,23 +93,22 @@ function ConfiguracionUsuario() {
 
     const handleUnlinkGoogle = async () => {
         try {
+            // Este endpoint es el mismo para desconectar la cuenta
             const response = await api.post('/api/user/disconnect/google-oauth2/');
-
             if (response.status === 200) {
                 googleLogout();
                 dispatch(fetchMe());
                 alert('Cuenta de Google desvinculada con éxito.');
             } else {
-                const errorData = response.data || {};
-                alert(`Error al desvincular: ${JSON.stringify(errorData)}`);
+                alert(`Error al desvincular: ${JSON.stringify(response.data || {})}`);
             }
         } catch (error) {
             console.error('Error during Google account disconnection:', error);
-            const errorMessage = error.response?.data ? JSON.stringify(error.response.data) : error.message;
-            alert(`Ocurrió un error al intentar desvincular la cuenta: ${errorMessage}`);
+            alert(`Ocurrió un error: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
         }
     };
 
+    // La cuenta de Google se obtiene del mismo lugar en el estado del usuario
     const googleAccount = user?.google_account;
 
     return (
@@ -127,20 +119,12 @@ function ConfiguracionUsuario() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre</label>
-                            <input type="text" name="nombre" id="nombre" value={formData.nombre} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                            <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">Nombre</label>
+                            <input type="text" name="first_name" id="first_name" value={formData.first_name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                         </div>
                         <div>
-                            <label htmlFor="apellido" className="block text-sm font-medium text-gray-700">Apellido</label>
-                            <input type="text" name="apellido" id="apellido" value={formData.apellido} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-                        </div>
-                        <div>
-                            <label htmlFor="matricula" className="block text-sm font-medium text-gray-700">Matrícula</label>
-                            <input type="text" name="matricula" id="matricula" value={formData.matricula} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-                        </div>
-                        <div>
-                            <label htmlFor="telefono" className="block text-sm font-medium text-gray-700">Teléfono</label>
-                            <input type="text" name="telefono" id="telefono" value={formData.telefono} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                            <label htmlFor="last_name" className="block text-sm font-medium text-gray-700">Apellido</label>
+                            <input type="text" name="last_name" id="last_name" value={formData.last_name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                         </div>
                         <div>
                             <label htmlFor="dni" className="block text-sm font-medium text-gray-700">DNI</label>
@@ -182,16 +166,31 @@ function ConfiguracionUsuario() {
                         ) : (
                             <button
                                 onClick={handleLinkGoogle}
-                                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                disabled={linkingStatus === 'loading'}
+                                className={`px-4 py-2 text-white rounded ${
+                                    linkingStatus === 'loading' 
+                                        ? 'bg-gray-400 cursor-not-allowed' 
+                                        : 'bg-blue-500 hover:bg-blue-600'
+                                }`}
                             >
-                                Vincular cuenta de Google
+                                {linkingStatus === 'loading' ? 'Vinculando...' : 'Vincular cuenta de Google'}
                             </button>
                         )}
                     </div>
+                    {linkingError && (
+                        <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                            <p className="text-sm text-red-600">{linkingError}</p>
+                        </div>
+                    )}
+                    {linkingStatus === 'success' && (
+                        <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                            <p className="text-sm text-green-600">¡Cuenta vinculada exitosamente!</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 }
 
-export default ConfiguracionUsuario;
+export default ConfiguracionAdmin;

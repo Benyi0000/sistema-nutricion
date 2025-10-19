@@ -1,16 +1,30 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import SidebarAdmin from '../../components/navigation/sidebars/SidebarAdmin';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout, logoutServer } from '../../features/auth/authSlice';
+import { logout, logoutServer, fetchMe } from '../../features/auth/authSlice';
 
 export default function AdminLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const { user } = useSelector(s => s.auth);
+
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                dispatch(fetchMe());
+            }
+        };
+
+        window.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [dispatch]);
 
     const handleLogout = async () => {
         try { await dispatch(logoutServer()); } finally {

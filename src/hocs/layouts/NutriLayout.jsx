@@ -1,16 +1,30 @@
 // src/hocs/layouts/NutriLayout.jsx
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Outlet, useNavigate } from "react-router-dom";
 import SidebarNutri from "../../components/navigation/sidebars/SidebarNutri";
 import { useDispatch } from "react-redux";
-import { logout } from "../../features/auth/authSlice";
+import { logout, fetchMe } from "../../features/auth/authSlice";
 
 export default function NutriLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const dispatch = useDispatch();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                dispatch(fetchMe());
+            }
+        };
+
+        window.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [dispatch]);
 
     const handleLogout = async () => {
         await dispatch(logout());

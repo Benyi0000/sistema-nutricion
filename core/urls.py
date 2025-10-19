@@ -3,6 +3,7 @@ from django.urls import path, re_path, include
 from django.views.generic import TemplateView
 from django.conf import settings
 from django.conf.urls.static import static
+from rest_framework_simplejwt.views import TokenBlacklistView
 
 urlpatterns = [
     # Admin
@@ -11,8 +12,8 @@ urlpatterns = [
     # Auth (Djoser + JWT + Social)
     path('auth/', include('djoser.urls')),
     path('auth/', include('djoser.urls.jwt')),
-    path('auth/', include('djoser.social.urls')),   # <-- reemplaza social_django
-    path('auth/', include('djoser.social.urls')), # <--- Añade esta línea
+    path('auth/jwt/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
+    path('auth/', include('djoser.social.urls')),
     path('social/', include('social_django.urls', namespace='social')),
 
     # CKEditor uploader

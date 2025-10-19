@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => ({
     server: {
         port: 5173,
         proxy: { "/api": "http://localhost:8000" },
+        // Esto hace que todas las rutas 404 devuelvan index.html
+        // Necesario para que React Router funcione con F5
+        historyApiFallback: true,
     },
     build: {
         outDir: "dist",

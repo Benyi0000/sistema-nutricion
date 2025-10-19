@@ -188,7 +188,11 @@ DJOSER = {
     "SOCIAL_AUTH_TOKEN_STRATEGY": "djoser.social.token.jwt.TokenStrategy",
     "SOCIAL_AUTH_ALLOWED_REDIRECT_URIS": env.list(
         "SOCIAL_AUTH_ALLOWED_REDIRECT_URIS",
-        default=["http://localhost:5173/google-auth"],
+        default=[
+            "http://localhost:5173/google-auth",
+            "http://localhost:5173/login",
+            "http://localhost:5173/",
+        ],
     ),
     'SERIALIZERS': {
         'user_create': 'apps.user.serializers.UserCreateSerializer',
@@ -211,35 +215,96 @@ SOCIAL_AUTH_REDIRECT_IS_HTTPS = not DEBUG
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = env("GOOGLE_CLIENT_ID")
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = env("GOOGLE_CLIENT_SECRET")
 
+# Permitir autenticación usando solo el access_token
+SOCIAL_AUTH_GOOGLE_OAUTH2_USE_DEPRECATED_API = False
+SOCIAL_AUTH_GOOGLE_OAUTH2_USE_UNIQUE_USER_ID = True
+
+# --- Redirects para SPA ---
+LOGIN_URL = 'http://localhost:5173/login'
+LOGIN_REDIRECT_URL = 'http://localhost:5173/panel/admin/configuracion'
+SOCIAL_AUTH_NEW_ASSOCIATION_REDIRECT_URL = 'http://localhost:5173/panel/admin/configuracion'
+SOCIAL_AUTH_DISCONNECT_REDIRECT_URL = 'http://localhost:5173/panel/admin/configuracion'
+
 SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile',
 ]
 
 # Configuración de Pipeline (IMPORTANTE para vincular y login)
+# Este pipeline NO crea usuarios nuevos, solo vincula existentes
 SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.social_details',
     'social_core.pipeline.social_auth.social_uid',
     'social_core.pipeline.social_auth.auth_allowed',
     'social_core.pipeline.social_auth.social_user',
-    # 'social_core.pipeline.user.get_username', # No usamos username
-    # Permite asociar una cuenta social con un usuario ya logueado
-    'social_core.pipeline.social_auth.associate_by_email', # Intenta asociar por email si ya existe
-    'social_core.pipeline.user.create_user', # Lo dejamos por si decides permitir registro en el futuro
+    # Intenta asociar por email si el usuario ya está logueado
+    'social_core.pipeline.social_auth.associate_by_email',
+    # Pipeline personalizado: solo permite login si el usuario existe y está vinculado
+    'apps.user.pipeline.require_existing_user',
     'social_core.pipeline.social_auth.associate_user',
     'social_core.pipeline.social_auth.load_extra_data',
     'social_core.pipeline.user.user_details',
+    'apps.user.pipeline.save_profile_details',
 )
 
+# Configuración adicional para OAuth
+SOCIAL_AUTH_GOOGLE_OAUTH2_AUTH_EXTRA_ARGUMENTS = {
+    'access_type': 'offline',
+}
 
+# Campos protegidos que no se actualizarán desde OAuth
+SOCIAL_AUTH_PROTECTED_USER_FIELDS = ['dni']
 
+# Permitir asociación por email cuando el usuario ya está autenticado
+SOCIAL_AUTH_ASSOCIATE_BY_MAIL = True
 
+# Logging configuration para debugging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'apps.user.pipeline': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'social_core': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'social_django': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'djoser': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}
 
 
 # --- CORS/CSRF (dev) ---
 # Ya arriba tomamos tus env: CORS_ALLOWED_ORIGINS, CSRF_TRUSTED_ORIGINS
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False # Default es False, pero lo hacemos explícito
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 

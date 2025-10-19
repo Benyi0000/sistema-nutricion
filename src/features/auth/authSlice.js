@@ -47,7 +47,14 @@ export const logoutServer = createAsyncThunk('auth/logoutServer', async (_, { ge
     const authSlice = createSlice({
     name: 'auth',
     initialState,
-    reducers: {},
+    reducers: {
+        // Acción para establecer tokens manualmente (usado en Google OAuth)
+        setTokens: (state, action) => {
+            state.access = action.payload.access;
+            state.refresh = action.payload.refresh;
+            state.status = 'succeeded';
+        }
+    },
     extraReducers: (b) => {
         b
         .addCase(login.pending, (st) => { st.status = 'loading'; st.error = null; })
@@ -57,7 +64,19 @@ export const logoutServer = createAsyncThunk('auth/logoutServer', async (_, { ge
             st.refresh = a.payload.refresh;
         })
         .addCase(login.rejected, (st) => { st.status = 'failed'; st.error = 'Credenciales inválidas'; })
-        .addCase(fetchMe.fulfilled, (st, a) => { st.user = a.payload; })
+        .addCase(fetchMe.pending, (st) => { st.status = 'loading'; })
+        .addCase(fetchMe.fulfilled, (st, a) => { 
+            st.user = a.payload; 
+            st.status = 'succeeded';
+        })
+        .addCase(fetchMe.rejected, (st) => { 
+            st.status = 'failed'; 
+            // Si falla fetchMe, probablemente el token es inválido
+            st.access = null;
+            st.refresh = null;
+            localStorage.removeItem('access');
+            localStorage.removeItem('refresh');
+        })
         .addCase(logoutServer.fulfilled, (st) => st) // sin cambios de estado
         .addCase(logout.fulfilled, (st) => {
             st.access = null; st.refresh = null; st.user = null; st.status = 'idle'; st.error = null;
@@ -65,4 +84,5 @@ export const logoutServer = createAsyncThunk('auth/logoutServer', async (_, { ge
     },
     });
 
+export const { setTokens } = authSlice.actions;
 export default authSlice.reducer;

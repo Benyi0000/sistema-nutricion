@@ -269,3 +269,201 @@ class PreguntaPersonalizadaViewSet(mixins.CreateModelMixin,
 
     def get_serializer_context(self):
         return {"request": self.request}
+
+# --- Vista para desvincular cuentas sociales (AJAX friendly) ---
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+from social_django.utils import load_strategy, load_backend
+from social_core.exceptions import AuthException
+import requests
+
+@login_required
+@require_POST
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def custom_disconnect(request, backend):
+    strategy = load_strategy(request)
+    backend_instance = load_backend(strategy, backend, redirect_uri=None)
+    backend_instance.disconnect(user=request.user)
+    return JsonResponse({'status': 'ok'})
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def link_google_account(request):
+    """
+    Vincula una cuenta de Google usando el access_token.
+    Este endpoint debe usarse en lugar del flujo web tradicional
+    para garantizar consistencia en el UID.
+    """
+    access_token = request.data.get('access_token')
+    if not access_token:
+        return Response(
+            {'error': 'access_token es requerido'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # Obtener información del usuario de Google
+        google_user_info_url = 'https://www.googleapis.com/oauth2/v2/userinfo'
+        headers = {'Authorization': f'Bearer {access_token}'}
+        response = requests.get(google_user_info_url, headers=headers)
+        
+        if response.status_code != 200:
+            return Response(
+                {'error': 'Token inválido o expirado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        google_data = response.json()
+        google_id = google_data.get('id')
+        google_email = google_data.get('email')
+        
+        if not google_id or not google_email:
+            return Response(
+                {'error': 'No se pudo obtener la información de Google'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar que el email de Google coincida con el del usuario
+        if google_email != request.user.email:
+            return Response(
+                {'error': 'El correo de Google no coincide con el correo de tu cuenta'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar si ya existe una vinculación
+        from social_django.models import UserSocialAuth
+        existing = UserSocialAuth.objects.filter(
+            user=request.user,
+            provider='google-oauth2'
+        ).first()
+        
+        if existing:
+            # Actualizar el UID si es diferente (por si estaba mal)
+            if existing.uid != google_id:
+                existing.uid = google_id
+                existing.extra_data = google_data
+                existing.save()
+                return Response({
+                    'status': 'updated',
+                    'message': 'Vinculación actualizada correctamente'
+                })
+            return Response({
+                'status': 'already_linked',
+                'message': 'Esta cuenta ya está vinculada'
+            })
+        
+        # Crear la vinculación
+        UserSocialAuth.objects.create(
+            user=request.user,
+            provider='google-oauth2',
+            uid=google_id,
+            extra_data=google_data
+        )
+        
+        return Response({
+            'status': 'linked',
+            'message': 'Cuenta vinculada correctamente'
+        })
+        
+    except requests.RequestException as e:
+        return Response(
+            {'error': f'Error al comunicarse con Google: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        return Response(
+            {'error': f'Error al vincular cuenta: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def google_oauth_login(request):
+    """
+    Login con Google usando access_token.
+    Este endpoint reemplaza /auth/o/google-oauth2/ de Djoser
+    para usar el flujo de popup en lugar del flujo de redirección.
+    """
+    access_token = request.data.get('access_token')
+    if not access_token:
+        return Response(
+            {'non_field_errors': ['access_token es requerido']},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # Obtener información del usuario de Google
+        import requests
+        google_user_info_url = 'https://www.googleapis.com/oauth2/v2/userinfo'
+        headers = {'Authorization': f'Bearer {access_token}'}
+        response = requests.get(google_user_info_url, headers=headers)
+        
+        if response.status_code != 200:
+            return Response(
+                {'non_field_errors': ['Token inválido o expirado']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        google_data = response.json()
+        google_id = google_data.get('id')
+        google_email = google_data.get('email')
+        
+        if not google_id or not google_email:
+            return Response(
+                {'non_field_errors': ['No se pudo obtener la información de Google']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Buscar la vinculación con este google_id (UID)
+        from social_django.models import UserSocialAuth
+        try:
+            social_auth = UserSocialAuth.objects.select_related('user').get(
+                provider='google-oauth2',
+                uid=google_id
+            )
+        except UserSocialAuth.DoesNotExist:
+            return Response(
+                {'non_field_errors': [
+                    'Esta cuenta de Google no está vinculada a ningún usuario. '
+                    'Por favor, inicia sesión con tu DNI y contraseña, luego '
+                    'vincula tu cuenta de Google desde el panel de configuración.'
+                ]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        user = social_auth.user
+        
+        # Verificar que el usuario esté activo
+        if not user.is_active:
+            return Response(
+                {'non_field_errors': ['Esta cuenta está desactivada']},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Generar tokens JWT usando SimpleJWT
+        from rest_framework_simplejwt.tokens import RefreshToken
+        
+        refresh = RefreshToken.for_user(user)
+        access = refresh.access_token
+        
+        return Response({
+            'access': str(access),
+            'refresh': str(refresh),
+        }, status=status.HTTP_200_OK)
+        
+    except requests.RequestException as e:
+        return Response(
+            {'non_field_errors': [f'Error al comunicarse con Google: {str(e)}']},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {'non_field_errors': [f'Error al iniciar sesión: {str(e)}']},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
