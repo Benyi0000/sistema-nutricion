@@ -37,6 +37,16 @@ export default function SidebarNutri() {
 
         <Item to="/panel/nutri/preguntas">Banco de preguntas</Item>
         <Item to="/panel/nutri/plantillas">Plantillas</Item>
+
+        {/* Perfil */}
+        <div>
+            <p className="px-3 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Mi Perfil
+            </p>
+            <div className="ml-3 space-y-1">
+                <Item to="/panel/nutri/configuracion">Configuración de perfil</Item>
+            </div>
+        </div>
         </nav>
     );
 }

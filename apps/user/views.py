@@ -11,6 +11,7 @@ from .serializers import (
     NutricionistaAltaSerializer,
     EspecialidadSerializer,
     NutricionistaListSerializer,
+    NutricionistaUpdateSerializer,
 )
 # --- LIMPIEZA: Imports duplicados eliminados ---
 # from .models import Especialidad
@@ -102,6 +103,38 @@ class NutricionistaAltaView(APIView):
             data = ser.save()
             return Response(data, status=status.HTTP_201_CREATED)
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
+from rest_framework.decorators import api_view, permission_classes
+
+@method_decorator(ensure_csrf_cookie, name='dispatch')
+class NutricionistaProfileView(generics.RetrieveUpdateAPIView):
+    """GET, PATCH /api/user/nutricionistas/me/"""
+    serializer_class = NutricionistaUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        # Devuelve el perfil del nutricionista logueado
+        return getattr(self.request.user, 'nutricionista', None)
+
+    def get(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance:
+            return Response({"detail": "Perfil de nutricionista no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+
+from django.http import JsonResponse
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+@ensure_csrf_cookie
+def csrf_cookie_view(request):
+    """Vista para forzar el envío de la cookie CSRF."""
+    return JsonResponse({"detail": "CSRF cookie set"})
 
 
 # POST /api/user/me/password_changed/

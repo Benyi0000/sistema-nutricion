@@ -15,14 +15,13 @@ import NutricionistasAdmin from './containers/pages/admin/Nutricionistas';
 
 import NutriLayout from './hocs/layouts/NutriLayout';
 import DashboardNutri from './containers/pages/nutricionista/Dashboard';
+import Configuracion from './containers/pages/nutricionista/Configuracion';
 
 import DashboardPaciente from './containers/pages/paciente/Dashboard';
 
 import AdminRoute from './hocs/routes/AdminRoute';
 import NutriRoute from './hocs/routes/NutriRoute';
 import PacienteRoute from './hocs/routes/PacienteRoute';
-import ConfiguracionUsuario from '../../sistema-nutricion/src/components/EditPerfil/ConfiguracionUsuario';
-
 
 // --- Placeholders simples (si aún no hiciste estas páginas) ---
 const ConsultasIndex = () => <div className="text-gray-700">Consultas — elige "Inicial" o "Seguimiento"</div>;
@@ -37,8 +36,6 @@ export default function AppRoutes() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/cambiar-clave" element={<ChangePassword />} />
-        <Route path="/configuracion" element={<ConfiguracionUsuario />} />
-
 
         {/* Admin anidado */}
         <Route
@@ -62,6 +59,7 @@ export default function AppRoutes() {
         <Route path="seguimientos/:pacienteId" element={<SeguimientoCrear />} />
         <Route path="preguntas" element={<BancoPreguntas />} />
         <Route path="plantillas" element={<PlantillasIndex />} />
+        <Route path="configuracion" element={<Configuracion />} />
         </Route>
 
         {/* Paciente */}

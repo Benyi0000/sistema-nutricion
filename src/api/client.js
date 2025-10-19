@@ -1,13 +1,40 @@
 import axios from "axios";
 
+// Helper para obtener el valor de una cookie
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL, // ej: http://localhost:8000
-    withCredentials: false,
+    withCredentials: true, // Habilitar para enviar cookies (CSRF)
     });
 
     api.interceptors.request.use((config) => {
+    // 1. Adjuntar token de autenticación JWT
     const access = localStorage.getItem("access");
     if (access) config.headers.Authorization = `JWT ${access}`;
+
+    // 2. Adjuntar token CSRF para métodos "inseguros"
+    const isSafeMethod = /^(GET|HEAD|OPTIONS)$/.test(config.method.toUpperCase());
+    if (!isSafeMethod) {
+        const csrfToken = getCookie('csrftoken');
+        if (csrfToken) {
+            config.headers['X-CSRFToken'] = csrfToken;
+        }
+    }
+
     return config;
     });
 

@@ -35,6 +35,22 @@ class NutricionistaSerializer(serializers.ModelSerializer):
         fields = ('id', 'nombre', 'apellido', 'matricula', 'telefono', 'foto_perfil', 'especialidades')
 
 
+class NutricionistaUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializador para que un nutricionista actualice su propio perfil.
+    """
+    class Meta:
+        model = Nutricionista
+        fields = ('nombre', 'apellido', 'matricula', 'telefono')
+
+    def validate_matricula(self, value):
+        # Opcional: asegurar que la matrícula no esté ya en uso por OTRO nutricionista
+        if self.instance and value:
+            if Nutricionista.objects.filter(matricula=value).exclude(pk=self.instance.pk).exists():
+                raise serializers.ValidationError("Esta matrícula ya está en uso por otro nutricionista.")
+        return value
+
+
 class PacienteSerializer(serializers.ModelSerializer):
     """
     Serializador para el perfil de Paciente (usado para anidar)
@@ -58,13 +74,14 @@ class UserDetailSerializer(serializers.ModelSerializer):
     
     nutricionista = NutricionistaSerializer(read_only=True)
     paciente = PacienteSerializer(read_only=True)
+    google_account = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = (
             "id", "dni", "email",
             "must_change_password", "is_staff", "role",
-            "nutricionista", "paciente",
+            "nutricionista", "paciente", "google_account",
         )
         read_only_fields = ("dni", "email", "is_staff", "role", "nutricionista", "paciente")
 
@@ -76,6 +93,15 @@ class UserDetailSerializer(serializers.ModelSerializer):
         if hasattr(obj, "paciente"):
             return "paciente"
         return "usuario"
+
+    def get_google_account(self, obj):
+        social_account = obj.social_auth.filter(provider='google-oauth2').first()
+        if social_account:
+            return {
+                'uid': social_account.uid,
+                'extra_data': social_account.extra_data,
+            }
+        return None
 
 
 class NutricionistaAltaSerializer(serializers.Serializer):

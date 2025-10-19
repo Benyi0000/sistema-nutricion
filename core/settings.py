@@ -16,6 +16,7 @@ DEBUG = env.bool("DEBUG", default=True)
 # DEV lists (coma-separado en tu .env)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS_DEV", default=["*"])
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS_DEV", default=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8000", "http://127.0.0.1:8000"])
+CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS_DEV",
     default=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8000", "http://127.0.0.1:8000"],
@@ -237,6 +238,8 @@ SOCIAL_AUTH_PIPELINE = (
 
 # --- CORS/CSRF (dev) ---
 # Ya arriba tomamos tus env: CORS_ALLOWED_ORIGINS, CSRF_TRUSTED_ORIGINS
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = False # Default es False, pero lo hacemos explícito
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 

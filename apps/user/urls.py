@@ -3,8 +3,10 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     NutricionistaAltaView,
+    NutricionistaProfileView,
     EspecialidadListView,
     marcar_password_cambiada,
+    csrf_cookie_view,
     PreguntasListView,
     ConsultaInicialView,
     ConsultaSeguimientoView,
@@ -29,9 +31,11 @@ urlpatterns = [
     path("consultas/inicial/", ConsultaInicialView.as_view()),
     path("consultas/seguimiento/", ConsultaSeguimientoView.as_view()),
     path("consultas/", ConsultasPacienteListView.as_view()),
+    path("nutricionistas/me/", NutricionistaProfileView.as_view()),
     path("nutricionistas/", NutricionistaAltaView.as_view()),
     path("especialidades/", EspecialidadListView.as_view()),
     path("me/password_changed/", marcar_password_cambiada),
+    path("csrf-cookie/", csrf_cookie_view),
 ]
 
 # Agrega las rutas del router (preguntas/personalizadas/)
