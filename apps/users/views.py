@@ -744,7 +744,26 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
             except AttributeError:
                 raise serializers.ValidationError("Perfil de paciente no encontrado.")
         else:
-            # Si es nutricionista, puede crear citas para cualquier paciente
+            # Si es nutricionista, también validar conflictos de horarios
+            appointment_date = serializer.validated_data.get('appointment_date')
+            appointment_time = serializer.validated_data.get('appointment_time')
+            nutritionist_id = serializer.validated_data.get('nutritionist')
+            
+            # Validar que no haya conflicto de horarios para el nutricionista
+            existing_appointment = Appointment.objects.filter(
+                nutritionist=nutritionist_id,
+                appointment_date=appointment_date,
+                appointment_time=appointment_time,
+                status__in=['scheduled', 'confirmed']
+            )
+            
+            if existing_appointment.exists():
+                existing = existing_appointment.first()
+                patient_name = existing.patient.person.user.get_full_name()
+                raise serializers.ValidationError(
+                    f"Ya existe una cita programada para el {appointment_date} a las {appointment_time} con el paciente {patient_name}."
+                )
+            
             serializer.save()
 
 
@@ -831,7 +850,8 @@ class AvailableAppointmentsView(APIView):
                 status__in=['scheduled', 'confirmed']
             ).values_list('appointment_time', flat=True)
             
-            occupied_times = [str(time) for time in occupied_appointments]
+            # Convertir tiempos a formato HH:MM para comparación
+            occupied_times = [time.strftime('%H:%M') if hasattr(time, 'strftime') else str(time)[:5] for time in occupied_appointments]
             
             time_slots = []
             for time_str in available_times:
@@ -874,7 +894,8 @@ class AvailableAppointmentsView(APIView):
                 status__in=['scheduled', 'confirmed']
             ).values_list('appointment_time', flat=True)
             
-            occupied_times = [str(time) for time in occupied_appointments]
+            # Convertir tiempos a formato HH:MM para comparación
+            occupied_times = [time.strftime('%H:%M') if hasattr(time, 'strftime') else str(time)[:5] for time in occupied_appointments]
             
             time_slots = []
             for time_str in available_times:

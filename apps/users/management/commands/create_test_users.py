@@ -134,3 +134,4 @@ class Command(BaseCommand):
         self.stdout.write('  - Carlos López: DNI 20234567')
         self.stdout.write('  - María Rodríguez: DNI 20345678')
         self.stdout.write('  - Ana García: DNI 30456789')
+
