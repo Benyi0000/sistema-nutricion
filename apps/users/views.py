@@ -29,7 +29,8 @@ from .serializers import (
     AppointmentSerializer,
     AppointmentCreateSerializer,
     AvailableDateSerializer,
-    AvailableTimeSlotSerializer
+    AvailableTimeSlotSerializer,
+    NutritionistSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -946,3 +947,116 @@ class NutritionistAppointmentsView(APIView):
         appointments = Appointment.objects.filter(nutritionist=user).order_by('appointment_date', 'appointment_time')
         serializer = AppointmentSerializer(appointments, many=True)
         return Response(serializer.data)
+
+
+# ===== VISTAS PARA ADMINISTRADOR - GESTIÓN DE NUTRICIONISTAS =====
+
+class NutritionistListView(generics.ListCreateAPIView):
+    """Listar y crear nutricionistas - Solo para administradores"""
+    serializer_class = NutritionistSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Solo superusuarios pueden acceder
+        if not self.request.user.is_superuser:
+            return User.objects.none()
+        return User.objects.filter(role='nutricionista').order_by('-date_joined')
+    
+    def create(self, request, *args, **kwargs):
+        # Verificar que es superusuario
+        if not request.user.is_superuser:
+            return Response(
+                {'error': 'Solo administradores pueden crear nutricionistas'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            # Obtener datos del request
+            dni = request.data.get('dni')
+            first_name = request.data.get('first_name')
+            last_name = request.data.get('last_name')
+            email = request.data.get('email')
+            
+            # Validar datos requeridos
+            if not all([dni, first_name, last_name, email]):
+                return Response(
+                    {'error': 'Faltan campos requeridos: dni, first_name, last_name, email'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Verificar que el DNI no exista
+            if User.objects.filter(dni=dni).exists():
+                return Response(
+                    {'error': 'Ya existe un usuario con este DNI'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Generar contraseña temporal
+            import random
+            import string
+            temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+            
+            # Crear el nutricionista directamente
+            nutritionist = User.objects.create_user(
+                dni=dni,
+                username=dni,
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                role='nutricionista',
+                is_staff=True,
+                is_active=True,
+                password=temp_password
+            )
+            
+            return Response({
+                'message': 'Nutricionista creado exitosamente',
+                'nutritionist': {
+                    'id': nutritionist.id,
+                    'dni': nutritionist.dni,
+                    'first_name': nutritionist.first_name,
+                    'last_name': nutritionist.last_name,
+                    'email': nutritionist.email,
+                    'is_active': nutritionist.is_active,
+                    'date_joined': nutritionist.date_joined
+                },
+                'temp_password': temp_password
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Error al crear nutricionista: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class NutritionistDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Ver, editar y eliminar nutricionista - Solo para administradores"""
+    serializer_class = NutritionistSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Solo superusuarios pueden acceder
+        if not self.request.user.is_superuser:
+            return User.objects.none()
+        return User.objects.filter(role='nutricionista')
+    
+    def update(self, request, *args, **kwargs):
+        # Verificar que es superusuario
+        if not request.user.is_superuser:
+            return Response(
+                {'error': 'Solo administradores pueden editar nutricionistas'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().update(request, *args, **kwargs)
+    
+    def destroy(self, request, *args, **kwargs):
+        # Verificar que es superusuario
+        if not request.user.is_superuser:
+            return Response(
+                {'error': 'Solo administradores pueden eliminar nutricionistas'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().destroy(request, *args, **kwargs)

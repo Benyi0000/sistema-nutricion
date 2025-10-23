@@ -10,6 +10,7 @@ import Home from './containers/pages/Home';
 import Login from './containers/pages/Login';
 import NutricionistaDashboard from './containers/pages/NutricionistaDashboard';
 import PacienteDashboard from './containers/pages/PacienteDashboard';
+import AdminDashboard from './containers/pages/AdminDashboard';
 import Unauthorized from './containers/pages/Unauthorized';
 import Error404 from './containers/errors/Error404';
 import FormularioCaptura from './containers/pages/FormularioCaptura';
@@ -32,6 +33,16 @@ function AppContent() {
         <Route path="/" element={<Home />} />
         <Route path="/auth/login" element={<Login />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
+        
+        {/* Rutas privadas - Dashboard Administrador */}
+        <Route 
+          path="/dashboard/admin" 
+          element={
+            <PrivateRoute allowedRoles={['nutricionista']}>
+              <AdminDashboard />
+            </PrivateRoute>
+          } 
+        />
         
         {/* Rutas privadas - Dashboard Nutricionista */}
         <Route 

@@ -21,6 +21,8 @@ from .views import (
     AvailableAppointmentsView,
     PatientAppointmentsView,
     NutritionistAppointmentsView,
+    NutritionistListView,
+    NutritionistDetailView,
 )
 
 app_name = 'users'
@@ -59,4 +61,8 @@ urlpatterns = [
     path('appointments/available/', AvailableAppointmentsView.as_view(), name='available_appointments'),
     path('appointments/patient/', PatientAppointmentsView.as_view(), name='patient_appointments'),
     path('appointments/nutritionist/', NutritionistAppointmentsView.as_view(), name='nutritionist_appointments'),
+    
+    # Gestión de nutricionistas (Solo para administradores)
+    path('nutritionists/', NutritionistListView.as_view(), name='nutritionist_list'),
+    path('nutritionists/<int:pk>/', NutritionistDetailView.as_view(), name='nutritionist_detail'),
 ]

@@ -10,22 +10,45 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('id', 'dni', 'email', 'first_name', 'last_name', 'role', 'is_active', 'profile_photo', 'phone')
-        read_only_fields = ('id', 'dni', 'role', 'is_active')  # is_active NO debe ser editable
+        fields = ('id', 'dni', 'email', 'first_name', 'last_name', 'role', 'is_active', 'is_superuser', 'profile_photo', 'phone')
+        read_only_fields = ('id', 'dni', 'role', 'is_active', 'is_superuser')  # is_active NO debe ser editable
+
+
+class NutritionistSerializer(serializers.ModelSerializer):
+    """Serializer específico para gestión de nutricionistas por el administrador"""
+    dni = serializers.CharField(max_length=8)
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    
+    class Meta:
+        model = User
+        fields = ('id', 'dni', 'email', 'first_name', 'last_name', 'is_active', 'date_joined')
+        read_only_fields = ('id', 'dni', 'date_joined')
+    
+    def create(self, validated_data):
+        # Crear usuario nutricionista simple
+        user = User.objects.create_user(
+            dni=validated_data['dni'],
+            username=validated_data['dni'],
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            email=validated_data['email'],
+            role='nutricionista',
+            is_staff=True,
+            is_active=True,
+            password='temp123'
+        )
         
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        # Agregar phone desde Person si existe
-        if hasattr(instance, 'person'):
-            data['phone'] = instance.person.phone
-        # Convertir profile_photo a URL completa si existe
-        if instance.profile_photo:
-            request = self.context.get('request')
-            if request:
-                data['profile_photo'] = request.build_absolute_uri(instance.profile_photo.url)
-            else:
-                data['profile_photo'] = instance.profile_photo.url
-        return data
+        return user
+    
+    def update(self, instance, validated_data):
+        # Actualizar campos del usuario
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        return instance
 
 
 class PersonSerializer(serializers.ModelSerializer):

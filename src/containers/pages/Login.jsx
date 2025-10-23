@@ -18,9 +18,18 @@ function Login() {
     useEffect(() => {
         // Si ya está logueado, redirigir al dashboard correspondiente
         if (isAuthenticated && user) {
-            if (user.role === 'nutricionista') {
+            console.log('User data:', user);
+            console.log('is_superuser:', user.is_superuser);
+            console.log('role:', user.role);
+            
+            if (user.is_superuser) {
+                console.log('Redirecting to admin dashboard');
+                navigate('/dashboard/admin');
+            } else if (user.role === 'nutricionista') {
+                console.log('Redirecting to nutritionist dashboard');
                 navigate('/dashboard/nutri');
             } else if (user.role === 'paciente') {
+                console.log('Redirecting to patient dashboard');
                 navigate('/dashboard/paciente');
             }
         }

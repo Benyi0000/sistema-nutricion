@@ -10,9 +10,18 @@ function PrivateRoute({ children, allowedRoles = [] }) {
         return <Navigate to="/auth/login" state={{ from: location }} replace />;
     }
 
-    if (allowedRoles.length > 0 && user && !allowedRoles.includes(user.role)) {
-        // Usuario autenticado pero sin permisos para esta ruta
-        return <Navigate to="/unauthorized" replace />;
+    if (allowedRoles.length > 0 && user) {
+        // Verificar si es administrador (superuser)
+        if (user.is_superuser) {
+            // El administrador puede acceder a cualquier ruta
+            return children;
+        }
+        
+        // Verificar si el rol del usuario está permitido
+        if (!allowedRoles.includes(user.role)) {
+            // Usuario autenticado pero sin permisos para esta ruta
+            return <Navigate to="/unauthorized" replace />;
+        }
     }
 
     return children;

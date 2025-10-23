@@ -170,4 +170,22 @@ export const appointmentsAPI = {
   getNutritionistAppointments: () => api.get('/appointments/nutritionist/'),
 };
 
+// API para gestión de nutricionistas (Solo para administradores)
+export const nutritionistsAPI = {
+  // Obtener lista de nutricionistas
+  list: () => api.get('/nutritionists/'),
+  
+  // Crear un nuevo nutricionista
+  create: (nutritionistData) => api.post('/nutritionists/', nutritionistData),
+  
+  // Obtener un nutricionista específico
+  get: (id) => api.get(`/nutritionists/${id}/`),
+  
+  // Actualizar un nutricionista
+  update: (id, nutritionistData) => api.put(`/nutritionists/${id}/`, nutritionistData),
+  
+  // Eliminar un nutricionista
+  delete: (id) => api.delete(`/nutritionists/${id}/`),
+};
+
 export default api;
