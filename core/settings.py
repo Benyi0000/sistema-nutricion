@@ -32,6 +32,7 @@ DJANGO_APPS = [
     "django.contrib.staticfiles",
 ]
 PROJECT_APPS = [
+    'apps.agenda',
     "apps.user",
 ]
 THIRD_PARTY_APPS = [

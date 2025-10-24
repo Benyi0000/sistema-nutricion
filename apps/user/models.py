@@ -81,6 +81,14 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
     # --- AÑADIDO ---
     # Campo movido desde el extinto modelo UserSecurity
     last_password_change = models.DateTimeField(null=True, blank=True)
+    
+    # Foto de perfil
+    profile_picture = models.ImageField(
+        upload_to='profile_pictures/',
+        null=True,
+        blank=True,
+        help_text="Foto de perfil del usuario"
+    )
 
     objects = UserAccountManager()
 
