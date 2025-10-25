@@ -5,6 +5,7 @@ import {
   useAddDisponibilidadMutation,
   useUpdateDisponibilidadMutation,
   useDeleteDisponibilidadMutation,
+  useGetUbicacionesQuery, // Necesitamos cargar ubicaciones
 } from '../../agendaApiSlice'; // Ajusta la ruta
 
 // Opciones para el selector de día de la semana
@@ -24,79 +25,69 @@ const formatTimeToHHMM = (timeStr) => {
   return timeStr.split(':').slice(0, 2).join(':');
 };
 
-// Helper para formatear fecha YYYY-MM-DD
-const formatDate = (date) => {
-    if (!date) return '';
-    // Si ya está en formato YYYY-MM-DD (viene de la API o del input date), devolverlo
-    if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        return date;
-    }
-    // Si es un objeto Date, formatearlo
-    try {
-        const d = new Date(date);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    } catch (e) {
-        return ''; // Devuelve vacío si la fecha no es válida
-    }
-};
-
-
 // Componente de Formulario Reutilizable
-const DisponibilidadForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
-  const today = formatDate(new Date());
-  // El backend espera horas en formato HH:MM:SS, pero el input "time" usa HH:MM
+const DisponibilidadForm = ({ initialData, onSubmit, isLoading, onCancel, ubicaciones }) => {
   const formatTimeToHHMM = (timeStr) => timeStr?.substring(0, 5) || '';
   const formatTimeToHHMMSS = (timeStr) => (timeStr ? `${timeStr}:00` : '00:00:00');
 
-  const [dia_semana, setDiaSemana] = useState(initialData?.dia_semana ?? 0); // Default Lunes
+  const [ubicacion, setUbicacion] = useState(initialData?.ubicacion || '');
+  const [dia_semana, setDiaSemana] = useState(initialData?.dia_semana ?? 0);
   const [hora_inicio, setHoraInicio] = useState(formatTimeToHHMM(initialData?.hora_inicio) || '09:00');
   const [hora_fin, setHoraFin] = useState(formatTimeToHHMM(initialData?.hora_fin) || '17:00');
-  const [fecha_inicio, setFechaInicio] = useState(formatDate(initialData?.fecha_inicio) || today);
-  // Default fecha fin a un año desde hoy si es nuevo
-  const defaultEndDate = new Date();
-  defaultEndDate.setFullYear(defaultEndDate.getFullYear() + 1);
-  const [fecha_fin, setFechaFin] = useState(formatDate(initialData?.fecha_fin) || formatDate(defaultEndDate));
+  const [slot_minutes, setSlotMinutes] = useState(initialData?.slot_minutes || 30);
 
   const [error, setError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setError(''); // Limpiar errores
+    setError('');
 
     // Validaciones
+    if (!ubicacion) {
+      setError('Debe seleccionar una ubicación.');
+      return;
+    }
     if (!hora_inicio || !hora_fin) {
-        setError('Las horas de inicio y fin son requeridas.');
-        return;
+      setError('Las horas de inicio y fin son requeridas.');
+      return;
     }
     if (hora_inicio >= hora_fin) {
       setError('La hora de fin debe ser posterior a la hora de inicio.');
       return;
     }
-     if (!fecha_inicio || !fecha_fin) {
-        setError('Las fechas de inicio y fin son requeridas.');
-        return;
-    }
-    if (fecha_inicio > fecha_fin) {
-        setError('La fecha de fin no puede ser anterior a la fecha de inicio.');
-        return;
-    }
-
 
     onSubmit({
+      ubicacion: parseInt(ubicacion, 10),
       dia_semana: parseInt(dia_semana, 10),
-      hora_inicio: formatTimeToHHMMSS(hora_inicio), // Asegurar HH:MM:SS
-      hora_fin: formatTimeToHHMMSS(hora_fin),     // Asegurar HH:MM:SS
-      fecha_inicio,
-      fecha_fin,
+      hora_inicio: formatTimeToHHMMSS(hora_inicio),
+      hora_fin: formatTimeToHHMMSS(hora_fin),
+      slot_minutes: parseInt(slot_minutes, 10),
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <p className="text-red-500 text-sm">{error}</p>}
+      
+      <div>
+        <label htmlFor="ubicacion" className="block text-sm font-medium text-gray-700">
+          Ubicación <span className="text-red-500">*</span>
+        </label>
+        <select
+          id="ubicacion"
+          value={ubicacion}
+          onChange={(e) => setUbicacion(e.target.value)}
+          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          required
+          disabled={isLoading}
+        >
+          <option value="">Seleccione una ubicación...</option>
+          {ubicaciones && ubicaciones.map(ub => (
+            <option key={ub.id} value={ub.id}>{ub.nombre}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label htmlFor="dia_semana" className="block text-sm font-medium text-gray-700">
@@ -115,7 +106,24 @@ const DisponibilidadForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
             ))}
           </select>
         </div>
-         {/* Podrías dejar este campo vacío o añadir otro si necesitas diferenciar */}
+        
+        <div>
+          <label htmlFor="slot_minutes" className="block text-sm font-medium text-gray-700">
+            Duración de slots (min) <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            id="slot_minutes"
+            value={slot_minutes}
+            onChange={(e) => setSlotMinutes(Math.max(5, parseInt(e.target.value, 10) || 5))}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            min="5"
+            step="5"
+            required
+            disabled={isLoading}
+          />
+          <p className="text-xs text-gray-500 mt-1">Intervalo entre turnos (ej: 15, 30, 60 minutos)</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -149,40 +157,6 @@ const DisponibilidadForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
         </div>
       </div>
 
-       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="fecha_inicio" className="block text-sm font-medium text-gray-700">
-            Válido Desde <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="date"
-            id="fecha_inicio"
-            value={fecha_inicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            required
-            min={today} // Opcional: No permitir fechas pasadas
-            disabled={isLoading}
-          />
-        </div>
-        <div>
-          <label htmlFor="fecha_fin" className="block text-sm font-medium text-gray-700">
-            Válido Hasta <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="date"
-            id="fecha_fin"
-            value={fecha_fin}
-            onChange={(e) => setFechaFin(e.target.value)}
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            required
-             min={fecha_inicio || today} // Asegurar que sea >= fecha_inicio
-            disabled={isLoading}
-          />
-        </div>
-      </div>
-
-
       <div className="flex justify-end space-x-3 pt-4">
         {onCancel && (
           <button
@@ -213,6 +187,7 @@ const DisponibilidadListEdit = () => {
 
   // --- RTK Query Hooks ---
   const { data: disponibilidades = [], isLoading: isLoadingGet, isError, error } = useGetDisponibilidadesQuery();
+  const { data: ubicaciones = [], isLoading: isLoadingUbicaciones } = useGetUbicacionesQuery();
   const [addDisponibilidad, { isLoading: isAddingMutation }] = useAddDisponibilidadMutation();
   const [updateDisponibilidad, { isLoading: isUpdatingMutation }] = useUpdateDisponibilidadMutation();
   const [deleteDisponibilidad, { isLoading: isDeletingMutation }] = useDeleteDisponibilidadMutation();
@@ -290,6 +265,7 @@ const DisponibilidadListEdit = () => {
             onSubmit={handleAddNew}
             isLoading={isAddingMutation}
             onCancel={() => setIsAdding(false)}
+            ubicaciones={ubicaciones}
           />
         </div>
       )}
@@ -302,6 +278,7 @@ const DisponibilidadListEdit = () => {
             onSubmit={handleUpdate}
             isLoading={isUpdatingMutation}
             onCancel={() => setEditingDisponibilidad(null)}
+            ubicaciones={ubicaciones}
           />
         </div>
       )}
@@ -314,14 +291,18 @@ const DisponibilidadListEdit = () => {
                  <div key={dayLabel} className="mb-4">
                    <h4 className="text-md font-semibold text-gray-700 mb-2">{dayLabel}</h4>
                    <ul className="divide-y divide-gray-200 border rounded">
-                     {groupedDisponibilidades[dayLabel].map((disp) => (
+                     {groupedDisponibilidades[dayLabel].map((disp) => {
+                       // Buscar el nombre de la ubicación
+                       const ubicacionNombre = ubicaciones.find(u => u.id === disp.ubicacion)?.nombre || `ID: ${disp.ubicacion}`;
+                       
+                       return (
                        <li key={disp.id} className="px-4 py-3 flex justify-between items-center space-x-4">
                          <div className="flex-1 min-w-0">
                            <p className="text-sm font-medium text-gray-900 truncate">
                              🕒 {formatTimeToHHMM(disp.hora_inicio)} - {formatTimeToHHMM(disp.hora_fin)}
                            </p>
                            <p className="text-sm text-gray-500 truncate">
-                             📅 Válido: {formatDate(disp.fecha_inicio)} hasta {formatDate(disp.fecha_fin)}
+                             � {ubicacionNombre} • 🔄 Slots de {disp.slot_minutes} min
                            </p>
                          </div>
                          <div className="flex-shrink-0 flex space-x-2">
@@ -341,7 +322,8 @@ const DisponibilidadListEdit = () => {
                            </button>
                          </div>
                        </li>
-                     ))}
+                       );
+                     })}
                    </ul>
                  </div>
                )

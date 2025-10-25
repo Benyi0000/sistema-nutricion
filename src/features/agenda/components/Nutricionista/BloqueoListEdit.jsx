@@ -5,6 +5,7 @@ import {
   useAddBloqueoMutation,
   useUpdateBloqueoMutation,
   useDeleteBloqueoMutation,
+  useGetUbicacionesQuery, // Necesitamos cargar ubicaciones
 } from '../../agendaApiSlice'; // Ajusta la ruta
 
 // Helper para formatear fecha/hora para input datetime-local (YYYY-MM-DDTHH:mm)
@@ -18,47 +19,14 @@ const formatDateTimeLocal = (isoString) => {
     }
 };
 
-// Helper para convertir fecha/hora local a ISO string con offset UTC
-// (Necesario porque el backend espera DateTimeRangeField con TimeZone)
-const formatToISOWithOffset = (localDateTimeString) => {
-    if (!localDateTimeString) return null;
-    try {
-        const date = new Date(localDateTimeString);
-        if (isNaN(date.getTime())) return null; // Fecha inválida
-
-        // Obtener el offset de la zona horaria local en minutos
-        const offsetMinutes = date.getTimezoneOffset();
-        const offsetHours = Math.abs(offsetMinutes / 60);
-        const offsetSign = offsetMinutes <= 0 ? '+' : '-'; // Ojo: getTimezoneOffset devuelve positivo para UTC-X
-
-        // Formatear la fecha y hora
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0'); // Añadir segundos
-
-        // Formatear el offset
-        const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:00`;
-
-        // Construir la cadena ISO 8601 completa
-        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
-
-    } catch (e) {
-        console.error("Error formatting date:", e);
-        return null;
-    }
-};
-
 // Componente de Formulario Reutilizable
-const BloqueoForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
+const BloqueoForm = ({ initialData, onSubmit, isLoading, onCancel, ubicaciones }) => {
   // Inicializar con la fecha/hora actual si es nuevo
   const nowLocal = formatDateTimeLocal(new Date().toISOString());
-  // El backend usa un campo 'slot' que es un DateTimeRangeField.
-  // En el form, lo manejamos como 'inicio' y 'fin' separados.
-  const [inicio, setInicio] = useState(formatDateTimeLocal(initialData?.slot?.lower) || nowLocal);
-  const [fin, setFin] = useState(formatDateTimeLocal(initialData?.slot?.upper) || nowLocal);
+  
+  const [ubicacion, setUbicacion] = useState(initialData?.ubicacion || '');
+  const [start_time, setStartTime] = useState(formatDateTimeLocal(initialData?.start_time) || nowLocal);
+  const [end_time, setEndTime] = useState(formatDateTimeLocal(initialData?.end_time) || nowLocal);
   const [motivo, setMotivo] = useState(initialData?.motivo || '');
   const [error, setError] = useState('');
 
@@ -67,49 +35,69 @@ const BloqueoForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
     setError('');
 
     // Validaciones
-    if (!inicio || !fin) {
-        setError('Las fechas/horas de inicio y fin son requeridas.');
-        return;
+    if (!ubicacion) {
+      setError('Debe seleccionar una ubicación.');
+      return;
     }
-    const inicioDate = new Date(inicio);
-    const finDate = new Date(fin);
+    if (!start_time || !end_time) {
+      setError('Las fechas/horas de inicio y fin son requeridas.');
+      return;
+    }
+    
+    const startDate = new Date(start_time);
+    const endDate = new Date(end_time);
 
-    if (isNaN(inicioDate.getTime()) || isNaN(finDate.getTime())) {
-        setError('Formato de fecha/hora inválido.');
-        return;
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      setError('Formato de fecha/hora inválido.');
+      return;
     }
 
-    if (inicioDate >= finDate) {
+    if (startDate >= endDate) {
       setError('La fecha/hora de fin debe ser posterior a la de inicio.');
       return;
     }
-     if (motivo.trim() === '') {
-        setError('El motivo es requerido.');
-        return;
+    
+    if (motivo.trim() === '') {
+      setError('El motivo es requerido.');
+      return;
     }
 
-    // Convertir a ISO string con offset antes de enviar
-    const inicioISO = formatToISOWithOffset(inicio);
-    const finISO = formatToISOWithOffset(fin);
-
-    if (!inicioISO || !finISO) {
-        setError('Error al formatear las fechas.');
-        return;
-    }
-
+    // Enviar en formato ISO-8601 (el backend espera DateTimeField)
     onSubmit({
-      // Construir el objeto 'slot' esperado por el backend
-      slot: {
-        lower: inicioISO,
-        upper: finISO,
-      },
-      motivo,
+      ubicacion: parseInt(ubicacion, 10),
+      start_time: new Date(start_time).toISOString(),
+      end_time: new Date(end_time).toISOString(),
+      motivo: motivo.trim(),
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+      
+      {/* Ubicación */}
+      <div>
+        <label htmlFor="ubicacionBloqueo" className="block text-sm font-medium text-gray-700">
+          Ubicación <span className="text-red-500">*</span>
+        </label>
+        <select
+          id="ubicacionBloqueo"
+          value={ubicacion}
+          onChange={(e) => setUbicacion(e.target.value)}
+          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          required
+          disabled={isLoading}
+        >
+          <option value="">-- Seleccione ubicación --</option>
+          {ubicaciones?.map((ub) => (
+            <option key={ub.id} value={ub.id}>
+              {ub.nombre} {ub.is_virtual ? '(Virtual)' : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Motivo */}
       <div>
         <label htmlFor="motivoBloqueo" className="block text-sm font-medium text-gray-700">
           Motivo <span className="text-red-500">*</span>
@@ -125,6 +113,7 @@ const BloqueoForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
         />
       </div>
 
+      {/* Fechas/Horas */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label htmlFor="inicioBloqueo" className="block text-sm font-medium text-gray-700">
@@ -133,8 +122,8 @@ const BloqueoForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
           <input
             type="datetime-local"
             id="inicioBloqueo"
-            value={inicio}
-            onChange={(e) => setInicio(e.target.value)}
+            value={start_time}
+            onChange={(e) => setStartTime(e.target.value)}
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             required
             disabled={isLoading}
@@ -147,10 +136,10 @@ const BloqueoForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
           <input
             type="datetime-local"
             id="finBloqueo"
-            value={fin}
-            onChange={(e) => setFin(e.target.value)}
+            value={end_time}
+            onChange={(e) => setEndTime(e.target.value)}
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            min={inicio || ''} // Fin debe ser >= Inicio
+            min={start_time || ''} // Fin debe ser >= Inicio
             required
             disabled={isLoading}
           />
@@ -186,12 +175,13 @@ const BloqueoListEdit = () => {
   const [editingBloqueo, setEditingBloqueo] = useState(null);
 
   // --- RTK Query Hooks ---
+  const { data: ubicaciones = [], isLoading: isLoadingUbicaciones } = useGetUbicacionesQuery();
+  
   // Ordenar por fecha de inicio descendente (más recientes primero)
   const { data: bloqueos = [], isLoading: isLoadingGet, isError, error } = useGetBloqueosQuery(undefined, {
-    // Podrías añadir un selector para ordenar o filtrar si la lista crece mucho
-     selectFromResult: ({ data, ...rest }) => ({
-        data: data ? [...data].sort((a, b) => new Date(b.slot.lower) - new Date(a.slot.lower)) : [],
-        ...rest,
+    selectFromResult: ({ data, ...rest }) => ({
+      data: data ? [...data].sort((a, b) => new Date(b.start_time) - new Date(a.start_time)) : [],
+      ...rest,
     }),
   });
   const [addBloqueo, { isLoading: isAddingMutation }] = useAddBloqueoMutation();
@@ -232,23 +222,27 @@ const BloqueoListEdit = () => {
   };
 
    // Formatear fecha y hora para mostrar en la lista (más legible)
-  const formatRangeForDisplay = (slot) => {
-    if (!slot?.lower || !slot?.upper) return 'Rango inválido';
+  const formatRangeForDisplay = (bloqueo) => {
+    if (!bloqueo?.start_time || !bloqueo?.end_time) return 'Rango inválido';
     try {
         const optionsDate = { year: 'numeric', month: '2-digit', day: '2-digit' };
         const optionsTime = { hour: '2-digit', minute: '2-digit' };
-        const inicio = new Date(slot.lower);
-        const fin = new Date(slot.upper);
+        const inicio = new Date(bloqueo.start_time);
+        const fin = new Date(bloqueo.end_time);
 
         const inicioFecha = inicio.toLocaleDateString('es-AR', optionsDate);
         const inicioHora = inicio.toLocaleTimeString('es-AR', optionsTime);
         const finFecha = fin.toLocaleDateString('es-AR', optionsDate);
         const finHora = fin.toLocaleTimeString('es-AR', optionsTime);
 
+        // Buscar el nombre de la ubicación
+        const ubicacion = ubicaciones.find(u => u.id === bloqueo.ubicacion);
+        const ubicacionNombre = ubicacion?.nombre || 'Ubicación desconocida';
+
         if (inicioFecha === finFecha) {
-            return `${inicioFecha} de ${inicioHora} a ${finHora} hs`;
+            return `📅 ${inicioFecha} de ${inicioHora} a ${finHora} hs • 📍 ${ubicacionNombre}`;
         } else {
-             return `Desde ${inicioFecha} ${inicioHora} hs hasta ${finFecha} ${finHora} hs`;
+            return `📅 Desde ${inicioFecha} ${inicioHora} hs hasta ${finFecha} ${finHora} hs • 📍 ${ubicacionNombre}`;
         }
     } catch(e) {
         return 'Fechas inválidas';
@@ -257,7 +251,7 @@ const BloqueoListEdit = () => {
 
 
   // --- Renderizado ---
-  if (isLoadingGet) return <div className="text-center p-4">Cargando bloqueos...</div>;
+  if (isLoadingGet || isLoadingUbicaciones) return <div className="text-center p-4">Cargando bloqueos...</div>;
   if (isError) return <div className="text-center p-4 text-red-600">Error al cargar bloqueos: {error?.data?.detail || error.status}</div>;
 
   return (
@@ -281,6 +275,7 @@ const BloqueoListEdit = () => {
             onSubmit={handleAddNew}
             isLoading={isAddingMutation}
             onCancel={() => setIsAdding(false)}
+            ubicaciones={ubicaciones}
           />
         </div>
       )}
@@ -293,6 +288,7 @@ const BloqueoListEdit = () => {
             onSubmit={handleUpdate}
             isLoading={isUpdatingMutation}
             onCancel={() => setEditingBloqueo(null)}
+            ubicaciones={ubicaciones}
           />
         </div>
       )}
@@ -308,7 +304,7 @@ const BloqueoListEdit = () => {
                       🚫 {bloqueo.motivo}
                     </p>
                     <p className="text-sm text-gray-500 truncate">
-                      {formatRangeForDisplay(bloqueo.slot)}
+                      {formatRangeForDisplay(bloqueo)}
                     </p>
                   </div>
                   <div className="flex-shrink-0 flex space-x-2">

@@ -7,83 +7,72 @@ import {
   useDeleteTipoConsultaMutation,
 } from '../../../features/agenda/agendaApiSlice';
 
-// Helper para convertir "HH:MM:SS" a minutos y viceversa
-const durationToMinutes = (durationStr) => {
-  if (!durationStr || typeof durationStr !== 'string') return 0;
-  const parts = durationStr.split(':');
-  if (parts.length === 3) {
-    const [hours, minutes] = parts.map(Number);
-    return hours * 60 + minutes;
-  }
-  return 0; // O manejar otros formatos si es necesario
-};
-
-const minutesToDuration = (minutes) => {
-  if (minutes === null || minutes === undefined || minutes < 0) return '00:00:00';
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  // Asegura el formato HH:MM:SS
-  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00`;
-};
-
 // Componente de Formulario Reutilizable
 const TipoConsultaForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
-  const [nombre, setNombre] = useState(initialData?.nombre || '');
-  // Manejamos la duración en minutos internamente para el input number
-  const [duracionMinutos, setDuracionMinutos] = useState(
-    initialData ? durationToMinutes(initialData.duracion_predeterminada) : 30
-  );
+  // Cambio: usamos 'tipo' en lugar de 'nombre'
+  const [tipo, setTipo] = useState(initialData?.tipo || 'INICIAL');
+  // Manejamos la duración en minutos directamente
+  const [duracionMin, setDuracionMin] = useState(initialData?.duracion_min || 30);
   const [precio, setPrecio] = useState(initialData?.precio || '0.00');
-  const [predeterminada, setPredeterminada] = useState(initialData?.predeterminada || false);
+  const [bufferBefore, setBufferBefore] = useState(initialData?.buffer_before_min || 0);
+  const [bufferAfter, setBufferAfter] = useState(initialData?.buffer_after_min || 0);
+  const [canalPorDefecto, setCanalPorDefecto] = useState(initialData?.canal_por_defecto || 'presencial');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (nombre.trim() === '') return; // Nombre es requerido
     onSubmit({
-      nombre,
-      // Convertimos los minutos de vuelta a formato "HH:MM:SS" antes de enviar
-      duracion_predeterminada: minutesToDuration(duracionMinutos),
-      precio: parseFloat(precio).toFixed(2), // Asegurar formato decimal
-      predeterminada,
+      tipo,
+      duracion_min: parseInt(duracionMin),
+      precio: parseFloat(precio).toFixed(2),
+      buffer_before_min: parseInt(bufferBefore),
+      buffer_after_min: parseInt(bufferAfter),
+      canal_por_defecto: canalPorDefecto,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="nombreTipoConsulta" className="block text-sm font-medium text-gray-700">
-          Nombre <span className="text-red-500">*</span>
+        <label htmlFor="tipoConsulta" className="block text-sm font-medium text-gray-700">
+          Tipo de Consulta <span className="text-red-500">*</span>
+        </label>
+        <select
+          id="tipoConsulta"
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          required
+          disabled={isLoading || initialData} // Deshabilitar si estamos editando (no se puede cambiar el tipo)
+        >
+          <option value="INICIAL">Inicial</option>
+          <option value="SEGUIMIENTO">Seguimiento</option>
+        </select>
+        {initialData && (
+          <p className="text-xs text-gray-500 mt-1">
+            El tipo no se puede cambiar una vez creado.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="duracionMin" className="block text-sm font-medium text-gray-700">
+          Duración (minutos) <span className="text-red-500">*</span>
         </label>
         <input
-          type="text"
-          id="nombreTipoConsulta"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
+          type="number"
+          id="duracionMin"
+          value={duracionMin}
+          onChange={(e) => setDuracionMin(Math.max(1, parseInt(e.target.value, 10) || 1))}
           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          min="1"
           required
           disabled={isLoading}
         />
       </div>
 
       <div>
-        <label htmlFor="duracionMinutos" className="block text-sm font-medium text-gray-700">
-          Duración (minutos) <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="number"
-          id="duracionMinutos"
-          value={duracionMinutos}
-          onChange={(e) => setDuracionMinutos(Math.max(0, parseInt(e.target.value, 10)))} // Evitar negativos
-          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-          min="1" // Duración mínima de 1 minuto
-          required
-          disabled={isLoading}
-        />
-      </div>
-
-       <div>
         <label htmlFor="precioTipoConsulta" className="block text-sm font-medium text-gray-700">
-          Precio (ARS) <span className="text-red-500">*</span>
+          Precio (ARS)
         </label>
         <input
           type="number"
@@ -92,28 +81,61 @@ const TipoConsultaForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
           onChange={(e) => setPrecio(e.target.value)}
           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           min="0.00"
-          step="0.01" // Para permitir decimales
-          required
+          step="0.01"
           disabled={isLoading}
         />
       </div>
 
       <div>
-        <label htmlFor="predeterminadaTipoConsulta" className="flex items-center space-x-2">
-          <input
-            id="predeterminadaTipoConsulta"
-            name="predeterminadaTipoConsulta"
-            type="checkbox"
-            checked={predeterminada}
-            onChange={(e) => setPredeterminada(e.target.checked)}
-            className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-            disabled={isLoading}
-          />
-          <span className="text-sm font-medium text-gray-700">Marcar como predeterminada</span>
+        <label htmlFor="bufferBefore" className="block text-sm font-medium text-gray-700">
+          Buffer antes (minutos)
         </label>
+        <input
+          type="number"
+          id="bufferBefore"
+          value={bufferBefore}
+          onChange={(e) => setBufferBefore(Math.max(0, parseInt(e.target.value, 10) || 0))}
+          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          min="0"
+          disabled={isLoading}
+        />
         <p className="text-xs text-gray-500 mt-1">
-            Solo un tipo de consulta puede ser predeterminado. Al marcar este, se desmarcará el anterior. (La API debería manejar esto)
+          Tiempo de preparación antes de la consulta
         </p>
+      </div>
+
+      <div>
+        <label htmlFor="bufferAfter" className="block text-sm font-medium text-gray-700">
+          Buffer después (minutos)
+        </label>
+        <input
+          type="number"
+          id="bufferAfter"
+          value={bufferAfter}
+          onChange={(e) => setBufferAfter(Math.max(0, parseInt(e.target.value, 10) || 0))}
+          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          min="0"
+          disabled={isLoading}
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Tiempo de cierre después de la consulta
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor="canalPorDefecto" className="block text-sm font-medium text-gray-700">
+          Canal por defecto
+        </label>
+        <select
+          id="canalPorDefecto"
+          value={canalPorDefecto}
+          onChange={(e) => setCanalPorDefecto(e.target.value)}
+          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          disabled={isLoading}
+        >
+          <option value="presencial">Presencial</option>
+          <option value="video">Video</option>
+        </select>
       </div>
 
       <div className="flex justify-end space-x-3">
@@ -129,7 +151,7 @@ const TipoConsultaForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
         )}
         <button
           type="submit"
-          disabled={isLoading || !nombre || duracionMinutos <= 0 || precio < 0} // Validación básica
+          disabled={isLoading || duracionMin <= 0}
           className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
         >
           {isLoading ? 'Guardando...' : (initialData ? 'Actualizar' : 'Añadir')}
@@ -231,16 +253,14 @@ const TipoConsultaListEdit = () => {
               {tiposConsulta.map((tipo) => (
                 <li key={tipo.id} className="py-4 flex justify-between items-center space-x-4">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-indigo-600 truncate flex items-center">
-                      {tipo.nombre}
-                      {tipo.predeterminada && (
-                        <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Predeterminada
-                        </span>
-                      )}
+                    <p className="text-sm font-medium text-indigo-600 truncate">
+                      {tipo.tipo_display || tipo.tipo}
                     </p>
                     <p className="text-sm text-gray-500 truncate">
-                      Duración: {durationToMinutes(tipo.duracion_predeterminada)} min - Precio: ${parseFloat(tipo.precio).toFixed(2)} ARS
+                      Duración: {tipo.duracion_min} min - Precio: ${parseFloat(tipo.precio || 0).toFixed(2)} ARS
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Buffer: {tipo.buffer_before_min}min antes / {tipo.buffer_after_min}min después - Canal: {tipo.canal_por_defecto}
                     </p>
                   </div>
                   <div className="flex-shrink-0 flex space-x-2">
@@ -263,7 +283,7 @@ const TipoConsultaListEdit = () => {
               ))}
             </ul>
           ) : (
-            <p className="text-center text-gray-500 py-4">No hay tipos de consulta configurados.</p>
+            <p className="text-center text-gray-500 py-4">No hay tipos de consulta configurados. Configure INICIAL y/o SEGUIMIENTO.</p>
           )}
         </div>
       )}
