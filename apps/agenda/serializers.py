@@ -1,6 +1,7 @@
 # apps/agenda/serializers.py
 from rest_framework import serializers
-from .models import Ubicacion, TipoConsultaConfig, DisponibilidadHoraria, BloqueoDisponibilidad
+from django.utils import timezone
+from .models import Ubicacion, TipoConsultaConfig, DisponibilidadHoraria, BloqueoDisponibilidad, ProfessionalSettings
 from apps.user.models import Nutricionista
 
 class UbicacionSerializer(serializers.ModelSerializer):
@@ -178,3 +179,63 @@ class TurnoSerializer(serializers.ModelSerializer):
     #       El estado inicial también se pondrá en la vista.
 
 # ... (TurnoSerializer que crearemos después)
+
+
+class ProfessionalSettingsSerializer(serializers.ModelSerializer):
+    """
+    Serializer para la configuración profesional del nutricionista.
+    """
+    nutricionista = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = ProfessionalSettings
+        fields = [
+            'id',
+            'nutricionista',
+            'booking_mode',
+            'payments_enabled',
+            'payment_methods',
+            'free_cancel_hours',
+            'min_reschedule_hours',
+            'no_show_fee_type',
+            'no_show_fee_value',
+            'deposit_enabled',
+            'deposit_type',
+            'deposit_value',
+            'anticipacion_minima',
+            'anticipacion_maxima',
+            'buffer_before_min',
+            'buffer_after_min',
+            'teleconsulta_enabled',
+        ]
+        read_only_fields = ['id', 'nutricionista']
+    
+    def to_representation(self, instance):
+        """Convertir timedelta a días/horas para el frontend"""
+        data = super().to_representation(instance)
+        
+        # Convertir anticipacion_minima de timedelta a horas
+        if instance.anticipacion_minima:
+            data['anticipacion_minima_hours'] = int(instance.anticipacion_minima.total_seconds() / 3600)
+        
+        # Convertir anticipacion_maxima de timedelta a días
+        if instance.anticipacion_maxima:
+            data['anticipacion_maxima_days'] = int(instance.anticipacion_maxima.total_seconds() / 86400)
+        
+        return data
+    
+    def to_internal_value(self, data):
+        """Convertir días/horas del frontend a timedelta"""
+        # Si el frontend envía anticipacion_minima_hours, convertir a timedelta
+        if 'anticipacion_minima_hours' in data:
+            from datetime import timedelta
+            hours = data.pop('anticipacion_minima_hours')
+            data['anticipacion_minima'] = timedelta(hours=hours)
+        
+        # Si el frontend envía anticipacion_maxima_days, convertir a timedelta
+        if 'anticipacion_maxima_days' in data:
+            from datetime import timedelta
+            days = data.pop('anticipacion_maxima_days')
+            data['anticipacion_maxima'] = timedelta(days=days)
+        
+        return super().to_internal_value(data)

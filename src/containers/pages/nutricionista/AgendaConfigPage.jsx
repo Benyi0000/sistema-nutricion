@@ -3,11 +3,7 @@ import UbicacionListEdit from '../../../features/agenda/components/Nutricionista
 import TipoConsultaListEdit from '../nutricionista/TipoConsultaListEdit';
 import DisponibilidadListEdit from '../../../features/agenda/components/Nutricionista/DisponibilidadListEdit';
 import BloqueoListEdit from '../../../features/agenda/components/Nutricionista/BloqueoListEdit';
-
-// Importa los componentes futuros (los crearás después)
-// import DisponibilidadListEdit from '../../../features/agenda/components/Nutricionista/DisponibilidadListEdit';
-// import BloqueoListEdit from '../../../features/agenda/components/Nutricionista/BloqueoListEdit';
-// import ProfessionalSettingsEdit from '../../../features/agenda/components/Nutricionista/ProfessionalSettingsEdit'; // Para ajustes generales
+import ProfessionalSettingsEdit from '../../../features/agenda/components/Nutricionista/ProfessionalSettingsEdit'; 
 
 const AgendaConfigPage = () => {
   return (
@@ -16,15 +12,13 @@ const AgendaConfigPage = () => {
 
       <div className="space-y-10"> {/* Aumentar espacio entre secciones */}
 
-        {/* Sección para configuraciones generales (Descomentar cuando exista el componente) */}
-        {/*
+
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           <div className="p-6">
             <h2 className="text-xl font-semibold text-gray-700 mb-4">Ajustes Generales</h2>
             <ProfessionalSettingsEdit />
           </div>
         </div>
-        */}
 
         {/* Sección para Ubicaciones */}
         <div className="bg-white shadow-lg rounded-lg overflow-hidden"> {/* Sombra más pronunciada */}

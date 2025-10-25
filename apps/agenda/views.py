@@ -2,18 +2,22 @@ from django.shortcuts import render
 
 # Create your views here.
 # apps/agenda/views.py
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, serializers
+from rest_framework.response import Response
+from rest_framework import status
 from .models import (
     Ubicacion, 
     TipoConsultaConfig, 
     DisponibilidadHoraria, 
-    BloqueoDisponibilidad
+    BloqueoDisponibilidad,
+    ProfessionalSettings
 )
 from .serializers import (
     UbicacionSerializer, 
     TipoConsultaConfigSerializer, 
     DisponibilidadHorariaSerializer, 
-    BloqueoDisponibilidadSerializer
+    BloqueoDisponibilidadSerializer,
+    ProfessionalSettingsSerializer
 )
 from .permissions import IsNutriOwner # <-- Importamos nuestro permiso personalizado
 
@@ -79,6 +83,40 @@ class BloqueoDisponibilidadViewSet(NutriConfigBaseViewSet):
     """
     queryset = BloqueoDisponibilidad.objects.all()
     serializer_class = BloqueoDisponibilidadSerializer
+
+
+class ProfessionalSettingsViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint para que el Nutricionista gestione su configuración profesional.
+    Solo puede tener una configuración (OneToOne con Nutricionista).
+    """
+    queryset = ProfessionalSettings.objects.all()
+    serializer_class = ProfessionalSettingsSerializer
+    permission_classes = [permissions.IsAuthenticated, IsNutriOwner]
+    
+    def get_queryset(self):
+        """Filtrar para que solo vea su propia configuración"""
+        nutri = self.request.user.nutricionista
+        return self.queryset.filter(nutricionista=nutri)
+    
+    def list(self, request, *args, **kwargs):
+        """
+        Sobrescribir list para retornar directamente el objeto único
+        en lugar de un array.
+        """
+        nutri = request.user.nutricionista
+        # Obtener o crear la configuración
+        settings, created = ProfessionalSettings.objects.get_or_create(
+            nutricionista=nutri
+        )
+        serializer = self.get_serializer(settings)
+        return Response(serializer.data)
+    
+    def perform_create(self, serializer):
+        """Asignar automáticamente el nutricionista"""
+        nutri = self.request.user.nutricionista
+        serializer.save(nutricionista=nutri)
+
 
 # --- PRÓXIMAMENTE (Día 2 - Parte B) ---
 # Aquí es donde irá el SlotsAPIView y el TurnoViewSet,

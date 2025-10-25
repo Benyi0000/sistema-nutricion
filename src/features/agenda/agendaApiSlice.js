@@ -33,13 +33,13 @@ export const agendaApiSlice = createApi({
 
     // --- Configuración Profesional ---
     getProfessionalSettings: builder.query({
-        query: () => 'professional-settings/', // Asumiendo endpoint /api/agenda/professional-settings/ (puede necesitar ajuste)
+        query: () => 'professional-settings/',
         providesTags: ['ProfessionalSettings'],
     }),
     updateProfessionalSettings: builder.mutation({
         query: (settings) => ({
-            url: `professional-settings/${settings.id}/`, // Asumiendo que se actualiza por ID
-            method: 'PATCH', // o PUT
+            url: `professional-settings/${settings.id}/`,
+            method: 'PATCH',
             body: settings,
         }),
         invalidatesTags: ['ProfessionalSettings'],
