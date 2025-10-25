@@ -2,6 +2,8 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../api/client';
 
 // Login con DNI + contraseña
+export const selectCurrentUser = (state) => state.auth.user;
+
 export const login = createAsyncThunk('auth/login', async ({ dni, password }) => {
     const { data } = await api.post('/auth/jwt/create/', { dni, password });
     localStorage.setItem('access', data.access);

@@ -28,11 +28,42 @@ class SimpleUserAccountSerializer(serializers.ModelSerializer):
     """
     Serializer simple para mostrar información básica del usuario.
     Usado en relaciones con Turno, Consulta, etc.
+    Puede recibir UserAccount, Nutricionista o Paciente.
     """
+    # Campos calculados para mostrar nombre completo desde el perfil
+    full_name = serializers.SerializerMethodField()
+    dni = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ['id', 'dni', 'email', 'primer_nombre', 'primer_apellido', 'telefono']
+        fields = ['id', 'dni', 'email', 'full_name']
         read_only_fields = fields
+    
+    def get_full_name(self, obj):
+        """Obtiene el nombre completo desde el perfil"""
+        # Si es un perfil Nutricionista o Paciente directamente
+        if hasattr(obj, 'nombre') and hasattr(obj, 'apellido'):
+            return f"{obj.nombre} {obj.apellido}"
+        # Si es UserAccount con perfil
+        elif hasattr(obj, 'nutricionista'):
+            return f"{obj.nutricionista.nombre} {obj.nutricionista.apellido}"
+        elif hasattr(obj, 'paciente'):
+            return f"{obj.paciente.nombre} {obj.paciente.apellido}"
+        # Fallback
+        return getattr(obj, 'email', 'Usuario')
+    
+    def get_dni(self, obj):
+        """Obtiene el DNI del usuario o del perfil"""
+        if hasattr(obj, 'user'):  # Es Nutricionista o Paciente
+            return obj.user.dni
+        return getattr(obj, 'dni', None)
+    
+    def get_email(self, obj):
+        """Obtiene el email del usuario o del perfil"""
+        if hasattr(obj, 'user'):  # Es Nutricionista o Paciente
+            return obj.user.email
+        return getattr(obj, 'email', None)
 
 
 # --- Serializadores de Perfil ---
@@ -72,6 +103,21 @@ class PacienteSerializer(serializers.ModelSerializer):
         fields = ('id', 'nombre', 'apellido', 'fecha_nacimiento', 'genero', 'telefono', 'foto_perfil')
 
 
+class PacienteUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializador para que un paciente actualice su propio perfil.
+    """
+    class Meta:
+        model = Paciente
+        fields = ('nombre', 'apellido', 'fecha_nacimiento', 'genero', 'telefono')
+
+    def validate_fecha_nacimiento(self, value):
+        """Validar que la fecha de nacimiento sea en el pasado"""
+        if value and value > date.today():
+            raise serializers.ValidationError("La fecha de nacimiento no puede ser en el futuro.")
+        return value
+
+
 class UserCreateSerializer(BaseCreate):
     class Meta(BaseCreate.Meta):
         model = User
@@ -83,6 +129,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
     Serializador de detalle de Usuario para /auth/users/me/
     """
     role = serializers.SerializerMethodField()
+    nutricionista_id = serializers.SerializerMethodField()
     
     nutricionista = NutricionistaSerializer(read_only=True)
     paciente = PacienteSerializer(read_only=True)
@@ -93,9 +140,9 @@ class UserDetailSerializer(serializers.ModelSerializer):
         fields = (
             "id", "dni", "email",
             "must_change_password", "is_staff", "role",
-            "nutricionista", "paciente", "google_account",
+            "nutricionista", "paciente", "nutricionista_id", "google_account",
         )
-        read_only_fields = ("dni", "email", "is_staff", "role", "nutricionista", "paciente")
+        read_only_fields = ("dni", "email", "is_staff", "role", "nutricionista", "paciente", "nutricionista_id")
 
     def get_role(self, obj):
         if obj.is_staff:
@@ -105,6 +152,23 @@ class UserDetailSerializer(serializers.ModelSerializer):
         if hasattr(obj, "paciente"):
             return "paciente"
         return "usuario"
+    
+    def get_nutricionista_id(self, obj):
+        """
+        Si el usuario es paciente, devuelve el ID del nutricionista asignado activo.
+        Si no hay asignación o el usuario no es paciente, devuelve None.
+        """
+        if hasattr(obj, "paciente"):
+            # Buscar asignación activa
+            asignacion = AsignacionNutricionistaPaciente.objects.filter(
+                paciente=obj.paciente,
+                activo=True
+            ).first()
+            
+            if asignacion:
+                return asignacion.nutricionista.id
+        
+        return None
 
     def get_google_account(self, obj):
         social_account = obj.social_auth.filter(provider='google-oauth2').first()

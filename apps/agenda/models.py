@@ -209,7 +209,7 @@ class Turno(models.Model):
     canal = models.CharField(max_length=16, choices=[("presencial","Presencial"),("video","Video")], default="presencial")
     source = models.CharField(max_length=16, choices=[("publico","Público"),("interno","Interno"),("waitlist","Waitlist")], default="publico")
 
-    tipo_consulta = models.CharField(max_length=32, choices=TipoConsulta.choices)
+    tipo_consulta = models.ForeignKey(TipoConsultaConfig, on_delete=models.PROTECT, related_name="turnos")
 
     # Tiempo
     start_time = models.DateTimeField()
@@ -263,8 +263,9 @@ class Turno(models.Model):
     def save(self, *args, **kwargs):
         # Mantener 'slot' consistente con start_time/end_time
         if self.start_time and self.end_time:
-            # Rango semiabierto: [start, end)
-            self.slot = (self.start_time, self.end_time)
+            # Rango semiabierto: [start, end) - debe ser un Range object
+            from psycopg.types.range import Range
+            self.slot = Range(self.start_time, self.end_time, bounds='[)')
         super().save(*args, **kwargs)
 
 

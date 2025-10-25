@@ -5,14 +5,14 @@ import {
   useAddBloqueoMutation,
   useUpdateBloqueoMutation,
   useDeleteBloqueoMutation,
-  useGetUbicacionesQuery, // Necesitamos cargar ubicaciones
-} from '../../agendaApiSlice'; // Ajusta la ruta
+  useGetUbicacionesQuery,
+} from '../../agendaApiSlice';
 
 // Helper para formatear fecha/hora para input datetime-local (YYYY-MM-DDTHH:mm)
 const formatDateTimeLocal = (isoString) => {
     if (!isoString) return '';
     try {
-        // Extraer YYYY-MM-DDTHH:mm de la cadena ISO (ej: 2024-10-26T10:00:00-03:00)
+        // Extraer YYYY-MM-DDTHH:mm de la cadena ISO
         return isoString.substring(0, 16);
     } catch (e) {
         return '';
@@ -139,7 +139,7 @@ const BloqueoForm = ({ initialData, onSubmit, isLoading, onCancel, ubicaciones }
             value={end_time}
             onChange={(e) => setEndTime(e.target.value)}
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            min={start_time || ''} // Fin debe ser >= Inicio
+            min={start_time || ''}
             required
             disabled={isLoading}
           />
@@ -187,7 +187,6 @@ const BloqueoListEdit = () => {
   const [addBloqueo, { isLoading: isAddingMutation }] = useAddBloqueoMutation();
   const [updateBloqueo, { isLoading: isUpdatingMutation }] = useUpdateBloqueoMutation();
   const [deleteBloqueo, { isLoading: isDeletingMutation }] = useDeleteBloqueoMutation();
-  // -----------------------
 
   const handleAddNew = async (formData) => {
     try {

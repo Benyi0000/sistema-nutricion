@@ -12,6 +12,7 @@ from .serializers import (
     EspecialidadSerializer,
     NutricionistaListSerializer,
     NutricionistaUpdateSerializer,
+    PacienteUpdateSerializer,  # Agregar el nuevo serializer
 )
 # --- LIMPIEZA: Imports duplicados eliminados ---
 # from .models import Especialidad
@@ -123,6 +124,24 @@ class NutricionistaProfileView(generics.RetrieveUpdateAPIView):
         instance = self.get_object()
         if not instance:
             return Response({"detail": "Perfil de nutricionista no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+
+@method_decorator(ensure_csrf_cookie, name='dispatch')
+class PacienteProfileView(generics.RetrieveUpdateAPIView):
+    """GET, PATCH /api/user/pacientes/me/"""
+    serializer_class = PacienteUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        # Devuelve el perfil del paciente logueado
+        return getattr(self.request.user, 'paciente', None)
+
+    def get(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance:
+            return Response({"detail": "Perfil de paciente no encontrado."}, status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 

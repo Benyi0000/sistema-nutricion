@@ -29,10 +29,11 @@ import TurnosManagePage from './containers/pages/nutricionista/TurnosManagePage'
 
 // --- Páginas Paciente ---
 import DashboardPaciente from './containers/pages/paciente/Dashboard';
-// --- ¡NUEVAS Páginas Agenda Paciente! ---
-// (Asegúrate de crear estos archivos de página)
 import TurnosViewPage from './containers/pages/paciente/TurnosViewPage';
-// import MisTurnosPage from './containers/pages/paciente/MisTurnosPage'; // Opcional
+import MisTurnosPage from './containers/pages/paciente/MisTurnosPage';
+import PlanesPage from './containers/pages/paciente/PlanesPage';
+import SeguimientoPage from './containers/pages/paciente/SeguimientoPage';
+import ConfiguracionPacientePage from './containers/pages/paciente/ConfiguracionPage';
 
 // --- Rutas Protegidas HOCs ---
 import AdminRoute from './hocs/routes/AdminRoute';
@@ -43,8 +44,6 @@ import PacienteRoute from './hocs/routes/PacienteRoute';
 const ConsultasIndex = () => <div className="text-gray-700 p-4">Consultas — elige "Inicial" o "Seguimiento"</div>;
 const BancoPreguntas = () => <div className="text-gray-700 p-4">Banco de preguntas</div>;
 const PlantillasIndex = () => <div className="text-gray-700 p-4">Plantillas</div>;
-// Placeholder para Mis Turnos (si decides añadir la ruta)
-const MisTurnosPage = () => <div className="text-gray-700 p-4">Mis Turnos (Próximamente)</div>;
 
 export default function AppRoutes() {
     return (
@@ -91,11 +90,14 @@ export default function AppRoutes() {
                 path="/panel/paciente"
                 element={<PacienteRoute><PacienteLayout /></PacienteRoute>}
             >
-                <Route index element={<DashboardPaciente />} /> {/* Dashboard como ruta índice */}
-                {/* ¡NUEVAS Rutas Agenda Paciente! */}
+                <Route index element={<DashboardPaciente />} />
+                {/* Agenda */}
                 <Route path="agenda/solicitar" element={<TurnosViewPage />} />
-                <Route path="agenda/mis-turnos" element={<MisTurnosPage />} /> {/* Ruta opcional */}
-                {/* Otras rutas de paciente pueden ir aquí */}
+                <Route path="agenda/mis-turnos" element={<MisTurnosPage />} />
+                {/* Otras páginas */}
+                <Route path="planes" element={<PlanesPage />} />
+                <Route path="seguimiento" element={<SeguimientoPage />} />
+                <Route path="configuracion" element={<ConfiguracionPacientePage />} />
             </Route>
 
             {/* Ruta Catch-all */}

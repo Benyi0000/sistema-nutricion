@@ -175,6 +175,21 @@ class Nutricionista(models.Model):
     @property
     def full_name(self):
         return f"{self.nombre} {self.apellido}".strip()
+    
+    def clean(self):
+        """Validar que el usuario no tenga perfil de Paciente"""
+        super().clean()
+        if hasattr(self.user, 'paciente'):
+            from django.core.exceptions import ValidationError
+            raise ValidationError(
+                "Este usuario ya tiene un perfil de Paciente. "
+                "Un usuario no puede ser Nutricionista y Paciente al mismo tiempo."
+            )
+    
+    def save(self, *args, **kwargs):
+        """Ejecutar validaciones antes de guardar"""
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class Genero(models.TextChoices):
@@ -198,6 +213,26 @@ class Paciente(models.Model):
 
     def __str__(self):
         return self.full_name or self.user.dni
+    
+    @property
+    def full_name(self):
+        """Retorna el nombre completo del paciente"""
+        return f"{self.nombre} {self.apellido}".strip()
+    
+    def clean(self):
+        """Validar que el usuario no tenga perfil de Nutricionista"""
+        super().clean()
+        if hasattr(self.user, 'nutricionista'):
+            from django.core.exceptions import ValidationError
+            raise ValidationError(
+                "Este usuario ya tiene un perfil de Nutricionista. "
+                "Un usuario no puede ser Paciente y Nutricionista al mismo tiempo."
+            )
+    
+    def save(self, *args, **kwargs):
+        """Ejecutar validaciones antes de guardar"""
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     # --- AÑADIDO ---
     # (Buena práctica añadir esta propiedad también aquí)

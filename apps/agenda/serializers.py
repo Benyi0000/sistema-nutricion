@@ -111,19 +111,29 @@ class TurnoSerializer(serializers.ModelSerializer):
     # Usar serializers simplificados o de solo lectura para las relaciones
     paciente = SimpleUserAccountSerializer(read_only=True)
     nutricionista = SimpleUserAccountSerializer(read_only=True)
-    # Permitir especificar Ubicacion y TipoConsulta por ID al crear/actualizar
-    ubicacion = serializers.PrimaryKeyRelatedField(
-        queryset=Ubicacion.objects.all(), # Se filtrará en la vista
-        required=False, # Puede ser nulo si es virtual o no aplica
+    
+    # Para ubicacion: usar ID al escribir, pero objeto completo al leer
+    ubicacion_id = serializers.PrimaryKeyRelatedField(
+        queryset=Ubicacion.objects.all(),
+        source='ubicacion',
+        write_only=True,
+        required=False,
         allow_null=True
     )
-    tipo_consulta = serializers.PrimaryKeyRelatedField(
-        queryset=TipoConsultaConfig.objects.all(), # Se filtrará en la vista
-        required=True # Asumimos que siempre se requiere un tipo
+    ubicacion = UbicacionSerializer(read_only=True)
+    
+    # Para tipo_consulta: usar ID al escribir, pero objeto completo al leer
+    tipo_consulta_id = serializers.PrimaryKeyRelatedField(
+        queryset=TipoConsultaConfig.objects.all(),
+        source='tipo_consulta',
+        write_only=True,
+        required=True
     )
-    # Mostrar el slot como objeto inicio/fin en lugar de Range object? Opcional.
-    # slot_inicio = serializers.DateTimeField(source='slot.lower', read_only=True)
-    # slot_fin = serializers.DateTimeField(source='slot.upper', read_only=True)
+    tipo_consulta = TipoConsultaConfigSerializer(read_only=True)
+    
+    # Campos auxiliares para enviar/recibir el slot como inicio y fin
+    slot_inicio = serializers.DateTimeField(write_only=True, required=False)
+    slot_fin = serializers.DateTimeField(write_only=True, required=False)
 
     class Meta:
         model = Turno
@@ -132,44 +142,58 @@ class TurnoSerializer(serializers.ModelSerializer):
             'paciente',
             'nutricionista',
             'ubicacion',
+            'ubicacion_id',  # Para escritura
             'tipo_consulta',
-            'slot', # El campo DateTimeRangeField
-            'estado',
+            'tipo_consulta_id',  # Para escritura
+            'slot', # El campo DateTimeRangeField (lectura)
+            'slot_inicio', # Para escritura
+            'slot_fin',    # Para escritura
+            'start_time',  # Agregar para lectura
+            'end_time',    # Agregar para lectura
+            'state',
             'notas_paciente',
-            'notas_nutricionista',
-            'fecha_creacion',
-            # 'slot_inicio', # Si descomentaste arriba
-            # 'slot_fin',    # Si descomentaste arriba
+            'created_at',  # CORREGIDO: era 'fecha_creacion', ahora 'created_at'
         ]
         read_only_fields = [
             'id',
             'paciente',         # Se asignará automáticamente al crear
-            'nutricionista',    # Se asignará automáticamente al crear o por URL
-            'estado',           # Se manejará con acciones o estado inicial
-            'fecha_creacion',
-            'notas_nutricionista', # Solo el nutri debería poder editar esto
+            'nutricionista',    # Se asignará automáticamente al crear
+            'ubicacion',        # Solo lectura (objeto completo)
+            'tipo_consulta',    # Solo lectura (objeto completo)
+            'slot',             # Solo lectura, se construye desde slot_inicio y slot_fin
+            'start_time',       # Solo lectura
+            'end_time',         # Solo lectura
+            'state',            # Se manejará con acciones o estado inicial
+            'created_at',       # CORREGIDO
         ]
 
     def validate(self, data):
-        # Validaciones adicionales si son necesarias
-        # - ¿El slot está realmente disponible? (aunque la SlotsAPIView ayuda, doble check es bueno)
-        # - ¿El tipo_consulta y ubicacion pertenecen al nutricionista? (Se hará en la vista)
-        # - ¿La duración implícita en 'slot' coincide con 'tipo_consulta.duracion'?
+        # Si se envían slot_inicio y slot_fin, construir el Range y establecer start/end times
+        slot_inicio = data.pop('slot_inicio', None)
+        slot_fin = data.pop('slot_fin', None)
+        
+        if slot_inicio and slot_fin:
+            from psycopg.types.range import Range
+            data['slot'] = Range(slot_inicio, slot_fin, bounds='[)')
+            # También establecer start_time y end_time (requeridos por el modelo)
+            data['start_time'] = slot_inicio
+            data['end_time'] = slot_fin
+        
         slot = data.get('slot')
         tipo_consulta = data.get('tipo_consulta')
 
         if slot and tipo_consulta:
              # Calcula la duración del slot proporcionado
              duracion_slot_min = (slot.upper - slot.lower).total_seconds() / 60
-             # Obtiene la duración esperada del tipo de consulta
-             duracion_esperada_min = tipo_consulta.duracion_predeterminada.total_seconds() / 60
-             if abs(duracion_slot_min - duracion_esperada_min) > 1: # Tolerancia de 1 min por si acaso
+             # Obtiene la duración esperada del tipo de consulta (en minutos)
+             duracion_esperada_min = tipo_consulta.duracion_min
+             if abs(duracion_slot_min - duracion_esperada_min) > 1: # Tolerancia de 1 min
                  raise serializers.ValidationError(
                      f"La duración del slot ({duracion_slot_min} min) no coincide con la duración "
-                     f"del tipo de consulta '{tipo_consulta.nombre}' ({duracion_esperada_min} min)."
+                     f"del tipo de consulta ({duracion_esperada_min} min)."
                  )
 
-        # Validar que el slot no esté en el pasado al crear (quizás con un margen)
+        # Validar que el slot no esté en el pasado al crear
         if slot and slot.lower <= timezone.now() and not self.instance: # Solo al crear
              raise serializers.ValidationError("No se pueden solicitar turnos en el pasado.")
 

@@ -47,7 +47,9 @@ export const agendaApiSlice = createApi({
 
     // --- Ubicaciones ---
     getUbicaciones: builder.query({
-      query: () => 'ubicaciones/',
+      query: (nutricionistaId) => nutricionistaId 
+        ? `nutricionista/${nutricionistaId}/ubicaciones/`
+        : 'ubicaciones/',
       providesTags: (result = []) => [
         ...result.map(({ id }) => ({ type: 'Ubicacion', id })), // Tags individuales
         { type: 'Ubicacion', id: 'LIST' }, // Tag para la lista completa
@@ -56,7 +58,9 @@ export const agendaApiSlice = createApi({
 
     // --- Tipos de Consulta ---
     getTiposConsulta: builder.query({
-      query: () => 'tipos-consulta/',
+      query: (nutricionistaId) => nutricionistaId 
+        ? `nutricionista/${nutricionistaId}/tipos-consulta/`
+        : 'tipos-consulta/',
       providesTags: (result = []) => [
         ...result.map(({ id }) => ({ type: 'TipoConsulta', id })),
         { type: 'TipoConsulta', id: 'LIST' },
@@ -84,10 +88,13 @@ export const agendaApiSlice = createApi({
     // --- Slots Disponibles ---
     getAvailableSlots: builder.query({
       // Los parámetros se pasan al usar el hook, ej: useGetAvailableSlotsQuery({ nutricionistaId: 1, ... })
-      query: ({ nutricionistaId, fechaInicio, fechaFin, duracion }) => {
+      query: ({ nutricionistaId, fechaInicio, fechaFin, duracion, ubicacionId }) => {
         let url = `nutricionista/${nutricionistaId}/slots/?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`;
         if (duracion) {
             url += `&duracion=${duracion}`;
+        }
+        if (ubicacionId) {
+            url += `&ubicacion_id=${ubicacionId}`;
         }
         return url;
       },

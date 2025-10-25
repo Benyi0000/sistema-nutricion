@@ -9,6 +9,8 @@ from .views import (
     BloqueoDisponibilidadViewSet,
     ProfessionalSettingsViewSet,
     SlotsAPIView,
+    NutricionistaUbicacionesAPIView,
+    NutricionistaTiposConsultaAPIView,
     TurnoViewSet, # Importar la nueva vista
     # TurnoViewSet (lo añadiremos después)
 )
@@ -24,7 +26,19 @@ router.register(r'turnos', TurnoViewSet, basename='turno')
 
 urlpatterns = [
     path('', include(router.urls)),
-    # Nueva ruta para los slots
+    # Ruta para obtener ubicaciones de un nutricionista (para pacientes)
+    path(
+        'nutricionista/<int:nutricionista_id>/ubicaciones/',
+        NutricionistaUbicacionesAPIView.as_view(),
+        name='nutricionista-ubicaciones'
+    ),
+    # Ruta para obtener tipos de consulta de un nutricionista (para pacientes)
+    path(
+        'nutricionista/<int:nutricionista_id>/tipos-consulta/',
+        NutricionistaTiposConsultaAPIView.as_view(),
+        name='nutricionista-tipos-consulta'
+    ),
+    # Ruta para los slots disponibles
     path(
         'nutricionista/<int:nutricionista_id>/slots/',
         SlotsAPIView.as_view(),

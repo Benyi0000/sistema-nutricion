@@ -10,8 +10,11 @@ from .models import (
     TipoConsultaConfig, 
     DisponibilidadHoraria, 
     BloqueoDisponibilidad,
-    ProfessionalSettings
+    ProfessionalSettings,
+    Turno,
+    TurnoState  # Agregar el enum
 )
+from apps.user.models import UserAccount, Nutricionista, Paciente
 from .serializers import (
     UbicacionSerializer, 
     TipoConsultaConfigSerializer, 
@@ -120,7 +123,9 @@ class ProfessionalSettingsViewSet(viewsets.ModelViewSet):
 
 # --- PRÓXIMAMENTE (Día 2 - Parte B) ---
 # Aquí es donde irá el SlotsAPIView y el TurnoViewSet,
-# pero con esto el nutri ya puede configurar su agenda.# apps/agenda/views.py
+# pero con esto el nutri ya puede configurar su agenda.
+
+# apps/agenda/views.py
 # ... (importaciones existentes)
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -133,6 +138,44 @@ from .serializers import TimeSlotSerializer   # Importar el serializer
 
 # ... (otros ViewSets)
 
+class NutricionistaUbicacionesAPIView(APIView):
+    """
+    Vista para obtener las ubicaciones de un nutricionista específico.
+    Permite a pacientes ver las ubicaciones donde pueden agendar.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, nutricionista_id):
+        # Obtener el perfil de nutricionista
+        nutricionista = get_object_or_404(Nutricionista, id=nutricionista_id)
+        
+        # Obtener ubicaciones del nutricionista
+        ubicaciones = Ubicacion.objects.filter(nutricionista=nutricionista)
+        
+        # Serializar
+        serializer = UbicacionSerializer(ubicaciones, many=True)
+        return Response(serializer.data)
+
+
+class NutricionistaTiposConsultaAPIView(APIView):
+    """
+    Vista para obtener los tipos de consulta de un nutricionista específico.
+    Permite a pacientes ver los tipos de consulta disponibles para agendar.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, nutricionista_id):
+        # Obtener el perfil de nutricionista
+        nutricionista = get_object_or_404(Nutricionista, id=nutricionista_id)
+        
+        # Obtener tipos de consulta del nutricionista
+        tipos_consulta = TipoConsultaConfig.objects.filter(nutricionista=nutricionista)
+        
+        # Serializar
+        serializer = TipoConsultaConfigSerializer(tipos_consulta, many=True)
+        return Response(serializer.data)
+
+
 class SlotsAPIView(APIView):
     """
     Vista para obtener los slots de tiempo disponibles para un nutricionista
@@ -141,27 +184,38 @@ class SlotsAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated] # O IsAdminUser si solo admins pueden ver todos
 
     def get(self, request, nutricionista_id):
-        # Obtener el nutricionista
-        nutricionista = get_object_or_404(UserAccount, id=nutricionista_id, rol=UserAccount.Rol.NUTRICIONISTA)
+        # Obtener el perfil de nutricionista directamente por ID
+        nutricionista = get_object_or_404(Nutricionista, id=nutricionista_id)
 
         # Obtener parámetros de fecha de la query string
         fecha_inicio_str = request.query_params.get('fecha_inicio')
         fecha_fin_str = request.query_params.get('fecha_fin')
         duracion_str = request.query_params.get('duracion') # Opcional
+        ubicacion_id_str = request.query_params.get('ubicacion_id') # Nuevo: opcional
 
         # Validar fechas
         if not fecha_inicio_str or not fecha_fin_str:
             return Response(
-                {"error": "Los parámetros 'fecha_inicio' y 'fecha_fin' son requeridos (YYYY-MM-DD)."},
+                {"error": "Los parámetros 'fecha_inicio' y 'fecha_fin' son requeridos."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
-            fecha_inicio = datetime.datetime.strptime(fecha_inicio_str, '%Y-%m-%d').date()
-            fecha_fin = datetime.datetime.strptime(fecha_fin_str, '%Y-%m-%d').date()
-        except ValueError:
+            # Intentar parsear como ISO 8601 primero (formato completo con timezone)
+            # Python 3.7+ soporta fromisoformat pero no con offset de timezone
+            # Usamos un enfoque más simple: extraer solo la parte de fecha
+            if 'T' in fecha_inicio_str:
+                fecha_inicio = datetime.datetime.fromisoformat(fecha_inicio_str.replace('Z', '+00:00')).date()
+            else:
+                fecha_inicio = datetime.datetime.strptime(fecha_inicio_str, '%Y-%m-%d').date()
+            
+            if 'T' in fecha_fin_str:
+                fecha_fin = datetime.datetime.fromisoformat(fecha_fin_str.replace('Z', '+00:00')).date()
+            else:
+                fecha_fin = datetime.datetime.strptime(fecha_fin_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError) as e:
             return Response(
-                {"error": "Formato de fecha inválido. Use YYYY-MM-DD."},
+                {"error": f"Formato de fecha inválido: {str(e)}. Use ISO 8601 o YYYY-MM-DD."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -189,9 +243,20 @@ class SlotsAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+        # Procesar ubicacion_id si se proporciona
+        ubicacion_id = None
+        if ubicacion_id_str:
+            try:
+                ubicacion_id = int(ubicacion_id_str)
+            except ValueError:
+                return Response(
+                    {"error": "El ID de ubicación debe ser un número entero."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
 
         # Calcular slots disponibles usando la función del utils.py
-        slots = calculate_available_slots(nutricionista, fecha_inicio, fecha_fin, duracion_minutos)
+        slots = calculate_available_slots(nutricionista, fecha_inicio, fecha_fin, duracion_minutos, ubicacion_id)
 
         # Serializar los resultados
         serializer = TimeSlotSerializer(slots, many=True)
@@ -224,14 +289,14 @@ class TurnoViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Turno.objects.select_related(
             'paciente', 'nutricionista', 'ubicacion', 'tipo_consulta'
-        ).order_by('-slot__lower') # Ordenar por fecha descendente
+        ).order_by('-start_time') # CORREGIDO: usar start_time en lugar de slot__lower
 
         if user.is_staff or user.is_superuser: # Admin ve todo
             return queryset
-        elif user.rol == UserAccount.Rol.NUTRICIONISTA:
-            return queryset.filter(nutricionista=user)
-        elif user.rol == UserAccount.Rol.PACIENTE:
-            return queryset.filter(paciente=user)
+        elif hasattr(user, 'nutricionista'):  # Usuario es nutricionista
+            return queryset.filter(nutricionista=user.nutricionista)  # CORREGIDO: user.nutricionista
+        elif hasattr(user, 'paciente'):  # Usuario es paciente
+            return queryset.filter(paciente=user.paciente)  # CORREGIDO: user.paciente
         else:
             return Turno.objects.none() # Otros roles no ven nada
 
@@ -251,84 +316,91 @@ class TurnoViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Asigna paciente, nutricionista (de la URL o datos), estado inicial
-        y valida que el slot no se solape ANTES de guardar.
+        Asigna paciente, nutricionista y estado inicial.
+        Valida que el slot esté disponible ANTES de guardar.
         """
         user = self.request.user
-        if user.rol != UserAccount.Rol.PACIENTE:
+        
+        # Verificar que el usuario sea un paciente
+        if not hasattr(user, 'paciente'):
              raise serializers.ValidationError("Solo los pacientes pueden solicitar turnos.")
 
-        # Obtener nutricionista de los datos (o de la URL si la estructura es diferente)
-        nutricionista_id = self.request.data.get('nutricionista_id') # Asume que envías el ID del nutri
+        # Obtener el perfil de paciente
+        paciente = user.paciente
+
+        # Obtener nutricionista del request (el ID del perfil de Nutricionista, no UserAccount)
+        nutricionista_id = self.request.data.get('nutricionista')
         if not nutricionista_id:
              raise serializers.ValidationError("Se requiere el ID del nutricionista.")
 
-        nutricionista = get_object_or_404(UserAccount, id=nutricionista_id, rol=UserAccount.Rol.NUTRICIONISTA)
+        # Obtener el perfil de nutricionista directamente
+        nutricionista = get_object_or_404(Nutricionista, id=nutricionista_id)
 
+        # Obtener slot, ubicacion y tipo_consulta de los datos validados
         slot = serializer.validated_data.get('slot')
         ubicacion = serializer.validated_data.get('ubicacion')
         tipo_consulta = serializer.validated_data.get('tipo_consulta')
 
         # Validar que Ubicacion y TipoConsulta pertenecen al Nutricionista
-        settings = ProfessionalSettings.objects.filter(nutricionista=nutricionista).first()
-        if not settings:
-             raise serializers.ValidationError("El nutricionista no tiene configuración de agenda.")
-        if ubicacion and ubicacion.professional_settings != settings:
+        if ubicacion and ubicacion.nutricionista != nutricionista:
              raise serializers.ValidationError("La ubicación no pertenece al nutricionista seleccionado.")
-        if tipo_consulta.professional_settings != settings:
+        if tipo_consulta.nutricionista != nutricionista:
              raise serializers.ValidationError("El tipo de consulta no pertenece al nutricionista seleccionado.")
 
 
         # **Validación CRÍTICA de solapamiento y disponibilidad**
-        # (Similar a calculate_available_slots pero para un slot específico)
         # 1. Verificar contra otros turnos TENTATIVOS o CONFIRMADOS
         overlapping_turnos = Turno.objects.filter(
             nutricionista=nutricionista,
-            estado__in=[Turno.EstadoTurno.TENTATIVO, Turno.EstadoTurno.CONFIRMADO],
+            state__in=[TurnoState.TENTATIVO, TurnoState.CONFIRMADO],
             slot__overlap=slot # Usar overlap para chequear intersección
         ).exists()
         if overlapping_turnos:
              raise serializers.ValidationError("El horario seleccionado ya no está disponible (ocupado por otro turno).")
 
-        # 2. Verificar contra bloqueos
-        overlapping_bloqueos = BloqueoDisponibilidad.objects.filter(
-            professional_settings__nutricionista=nutricionista,
-            slot__overlap=slot
-        ).exists()
-        if overlapping_bloqueos:
+        # 2. Verificar contra bloqueos (filtrar por ubicacion si aplica)
+        bloqueos_query = BloqueoDisponibilidad.objects.filter(
+            nutricionista=nutricionista,
+            start_time__lt=slot.upper,
+            end_time__gt=slot.lower
+        )
+        if ubicacion:
+            bloqueos_query = bloqueos_query.filter(ubicacion=ubicacion)
+        
+        if bloqueos_query.exists():
               raise serializers.ValidationError("El horario seleccionado no está disponible (bloqueado).")
 
         # 3. Verificar si cae dentro de alguna DisponibilidadHoraria válida
         weekday = slot.lower.weekday()
         hora_inicio = slot.lower.time()
         hora_fin = slot.upper.time()
-        fecha = slot.lower.date()
 
-        is_within_disponibilidad = DisponibilidadHoraria.objects.filter(
-            professional_settings=settings,
+        disponibilidades_query = DisponibilidadHoraria.objects.filter(
+            nutricionista=nutricionista,
             dia_semana=weekday,
-            fecha_inicio__lte=fecha,
-            fecha_fin__gte=fecha,
             hora_inicio__lte=hora_inicio,
             hora_fin__gte=hora_fin # Asegura que el slot completo esté dentro
-        ).exists()
+        )
+        if ubicacion:
+            disponibilidades_query = disponibilidades_query.filter(ubicacion=ubicacion)
 
-        if not is_within_disponibilidad:
+        if not disponibilidades_query.exists():
              raise serializers.ValidationError("El horario seleccionado no está dentro de la disponibilidad del nutricionista.")
+
 
 
         # Si pasa todas las validaciones, guardar con datos automáticos
         serializer.save(
-            paciente=user,
+            paciente=paciente,
             nutricionista=nutricionista,
-            estado=Turno.EstadoTurno.TENTATIVO # Estado inicial
+            state=TurnoState.TENTATIVO # Estado inicial
         )
 
     # Acción para que el Nutricionista apruebe un turno
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsNutriOwner])
     def aprobar(self, request, pk=None):
         turno = self.get_object()
-        if turno.estado != Turno.EstadoTurno.TENTATIVO:
+        if turno.state != TurnoState.TENTATIVO:
             return Response(
                 {"error": "Solo se pueden aprobar turnos en estado TENTATIVO."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -336,7 +408,7 @@ class TurnoViewSet(viewsets.ModelViewSet):
          # Validar solapamiento OTRA VEZ por si algo cambió mientras estaba tentativo
         overlapping_turnos = Turno.objects.filter(
             nutricionista=turno.nutricionista,
-            estado=Turno.EstadoTurno.CONFIRMADO, # Solo contra confirmados ahora? O tentativos también?
+            state=TurnoState.CONFIRMADO, # Solo contra confirmados ahora? O tentativos también?
             slot__overlap=turno.slot
         ).exclude(pk=turno.pk).exists() # Excluir el turno actual
         if overlapping_turnos:
@@ -344,7 +416,7 @@ class TurnoViewSet(viewsets.ModelViewSet):
              return Response({"error": "Conflicto de horario detectado. No se puede aprobar."}, status=status.HTTP_409_CONFLICT)
 
 
-        turno.estado = Turno.EstadoTurno.CONFIRMADO
+        turno.state = TurnoState.CONFIRMADO
         # Podrías añadir notas del nutricionista aquí si se envían en el request
         # turno.notas_nutricionista = request.data.get('notas_nutricionista', turno.notas_nutricionista)
         turno.save()
@@ -359,9 +431,9 @@ class TurnoViewSet(viewsets.ModelViewSet):
 
         # Validar quién puede cancelar qué estado
         can_cancel = False
-        if user == turno.paciente and turno.estado in [Turno.EstadoTurno.TENTATIVO, Turno.EstadoTurno.CONFIRMADO]:
+        if user == turno.paciente and turno.state in [TurnoState.TENTATIVO, TurnoState.CONFIRMADO]:
              can_cancel = True # Paciente puede cancelar sus turnos (quizás con límite de tiempo antes de la cita?)
-        elif user == turno.nutricionista and turno.estado in [Turno.EstadoTurno.TENTATIVO, Turno.EstadoTurno.CONFIRMADO]:
+        elif user == turno.nutricionista and turno.state in [TurnoState.TENTATIVO, TurnoState.CONFIRMADO]:
              can_cancel = True # Nutri puede cancelar
         elif user.is_staff: # Admin puede cancelar
              can_cancel = True
@@ -373,12 +445,12 @@ class TurnoViewSet(viewsets.ModelViewSet):
              )
 
         # Validar si ya pasó?
-        if turno.slot.lower <= timezone.now() and turno.estado == Turno.EstadoTurno.CONFIRMADO:
+        if turno.slot.lower <= timezone.now() and turno.state == TurnoState.CONFIRMADO:
              # No permitir cancelar turnos confirmados que ya pasaron? O cambiar a NO_ASISTIO?
              # return Response({"error": "No se puede cancelar un turno que ya ha pasado."}, status=status.HTTP_400_BAD_REQUEST)
              pass # O permitirlo con registro?
 
-        turno.estado = Turno.EstadoTurno.CANCELADO
+        turno.state = TurnoState.CANCELADO
         # Añadir razón de cancelación?
         # turno.notas_cancelacion = request.data.get('razon')
         turno.save()

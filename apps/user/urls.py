@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     NutricionistaAltaView,
     NutricionistaProfileView,
+    PacienteProfileView,  # Agregar la nueva vista
     EspecialidadListView,
     marcar_password_cambiada,
     csrf_cookie_view,
@@ -32,6 +33,7 @@ urlpatterns = [
     path("link-google/", link_google_account, name="link_google_account"),
     path("disconnect/<str:backend>/", custom_disconnect, name="custom_disconnect"),
     path("pacientes/<int:id>/", PacienteDetailView.as_view()),
+    path("pacientes/me/", PacienteProfileView.as_view()),  # Agregar endpoint para perfil del paciente
     path("pacientes/", PacientesNutricionistaListView.as_view()),
     path("preguntas/", PreguntasListView.as_view()),
     path("consultas/inicial/", ConsultaInicialView.as_view()),

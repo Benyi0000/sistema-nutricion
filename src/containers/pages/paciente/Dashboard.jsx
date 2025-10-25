@@ -1,13 +1,13 @@
-import PacienteLayout from '../../../hocs/layouts/PacienteLayout';
-import Navbar from '../../../components/navigation/Navbar';
-import Footer from '../../../components/navigation/Footer';
+// src/containers/pages/paciente/Dashboard.jsx
 
 export default function DashboardPaciente() {
     return (
-        <PacienteLayout>
-        <Navbar />
-        <div className="pt-28 min-h-screen">Dashboard Paciente</div>
-        <Footer />
-        </PacienteLayout>
+        <div className="space-y-4">
+        <h1 className="text-2xl font-bold">Dashboard Paciente</h1>
+        <p className="text-gray-600">
+            Bienvenido/a. Desde el menú lateral podés acceder a tus turnos,
+            planes, seguimiento y configuración.
+        </p>
+        </div>
     );
 }

@@ -1,18 +1,19 @@
 # apps/agenda/utils.py
 import datetime
-from psycopg2.extras import DateTimeTZRange
 from django.utils import timezone
-from .models import DisponibilidadHoraria, BloqueoDisponibilidad, Turno, TipoConsultaConfig, ProfessionalSettings
+from psycopg.types.range import Range
+from .models import DisponibilidadHoraria, BloqueoDisponibilidad, Turno, TipoConsultaConfig, ProfessionalSettings, TurnoState
 
-def calculate_available_slots(nutricionista, start_date, end_date, duracion_minutos=None):
+def calculate_available_slots(nutricionista, start_date, end_date, duracion_minutos=None, ubicacion_id=None):
     """
     Calcula los slots de tiempo disponibles para un nutricionista en un rango de fechas.
 
     Args:
-        nutricionista: Instancia del UserAccount del nutricionista.
+        nutricionista: Instancia del perfil Nutricionista.
         start_date: Fecha de inicio (date object).
         end_date: Fecha de fin (date object, inclusiva).
         duracion_minutos: Duración del slot deseado en minutos. Si es None, usa la predeterminada.
+        ubicacion_id: ID de la ubicación para filtrar disponibilidades. Si es None, no filtra por ubicación.
 
     Returns:
         Lista de diccionarios [{'inicio': datetime, 'fin': datetime}] representando los slots.
@@ -28,10 +29,10 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
         if duracion_minutos is None:
              # Buscamos una configuración de consulta predeterminada o la primera
             default_tipo_consulta = TipoConsultaConfig.objects.filter(
-                professional_settings=settings
-            ).order_by('-predeterminada', 'id').first()
+                nutricionista=nutricionista
+            ).order_by('id').first()
             if default_tipo_consulta:
-                duracion_minutos = default_tipo_consulta.duracion_predeterminada.total_seconds() / 60
+                duracion_minutos = default_tipo_consulta.duracion_min
             else:
                 duracion_minutos = 60 # Default fallback si no hay TipoConsultaConfig
     except ProfessionalSettings.DoesNotExist:
@@ -45,12 +46,16 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
         weekday = current_date.weekday() # Lunes=0, Domingo=6
 
         # Obtener disponibilidades para este día de la semana
-        disponibilidades = DisponibilidadHoraria.objects.filter(
-            professional_settings__nutricionista=nutricionista,
-            dia_semana=weekday,
-            fecha_inicio__lte=current_date,
-            fecha_fin__gte=current_date
+        disponibilidades_query = DisponibilidadHoraria.objects.filter(
+            nutricionista=nutricionista,
+            dia_semana=weekday
         )
+        
+        # Filtrar por ubicación si se especificó
+        if ubicacion_id:
+            disponibilidades_query = disponibilidades_query.filter(ubicacion_id=ubicacion_id)
+        
+        disponibilidades = disponibilidades_query
 
         daily_potential_slots = []
 
@@ -68,9 +73,10 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
             # Generar slots potenciales dentro de esta disponibilidad
             current_slot_start = start_dt
             while current_slot_start + slot_duration <= end_dt:
-                daily_potential_slots.append(DateTimeTZRange(
+                daily_potential_slots.append(Range(
                     current_slot_start,
-                    current_slot_start + slot_duration
+                    current_slot_start + slot_duration,
+                    bounds='[)'
                 ))
                 current_slot_start += slot_duration # Avanzar al siguiente slot potencial
 
@@ -83,19 +89,31 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
         day_start = timezone.make_aware(datetime.datetime.combine(current_date, datetime.time.min), current_tz)
         day_end = timezone.make_aware(datetime.datetime.combine(current_date, datetime.time.max), current_tz)
 
-        bloqueos = BloqueoDisponibilidad.objects.filter(
-            professional_settings__nutricionista=nutricionista,
-            slot__overlap=DateTimeTZRange(day_start, day_end) # Rango del día completo
+        bloqueos_query = BloqueoDisponibilidad.objects.filter(
+            nutricionista=nutricionista,
+            start_time__lt=day_end,  # El bloqueo empieza antes del fin del día
+            end_time__gt=day_start   # El bloqueo termina después del inicio del día
         )
+        
+        # Filtrar bloqueos por ubicación si se especificó
+        if ubicacion_id:
+            bloqueos_query = bloqueos_query.filter(ubicacion_id=ubicacion_id)
+        
+        bloqueos = bloqueos_query
 
         turnos_ocupados = Turno.objects.filter(
             nutricionista=nutricionista,
-            estado__in=[Turno.EstadoTurno.TENTATIVO, Turno.EstadoTurno.CONFIRMADO],
-            slot__overlap=DateTimeTZRange(day_start, day_end)
+            state__in=[TurnoState.TENTATIVO, TurnoState.RESERVADO, TurnoState.CONFIRMADO],  # Estados que ocupan el slot
+            slot__overlap=Range(day_start, day_end, bounds='[)')
         )
 
         # Convertir bloqueos y turnos a rangos para fácil comparación
-        occupied_ranges = [b.slot for b in bloqueos] + [t.slot for t in turnos_ocupados]
+        occupied_ranges = []
+        for b in bloqueos:
+            # Crear un rango desde start_time hasta end_time
+            occupied_ranges.append(Range(b.start_time, b.end_time, bounds='[)'))
+        for t in turnos_ocupados:
+            occupied_ranges.append(t.slot)
 
         # 4. Filtrar slots potenciales eliminando los ocupados
         for potential_slot in daily_potential_slots:
