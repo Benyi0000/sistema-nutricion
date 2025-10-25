@@ -166,7 +166,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "AUTH_HEADER_TYPES": ("JWT",),  # Authorization: JWT <token>
+    "AUTH_HEADER_TYPES": ("Bearer",),  # Authorization: Bearer <token> (estándar OAuth2/JWT)
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60 * 24),  # 24h
     "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "ROTATE_REFRESH_TOKENS": True,

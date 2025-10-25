@@ -23,6 +23,18 @@ from .utils import normalize_respuestas
 User = get_user_model()
 
 
+# --- Serializer Simple para UserAccount ---
+class SimpleUserAccountSerializer(serializers.ModelSerializer):
+    """
+    Serializer simple para mostrar información básica del usuario.
+    Usado en relaciones con Turno, Consulta, etc.
+    """
+    class Meta:
+        model = User
+        fields = ['id', 'dni', 'email', 'primer_nombre', 'primer_apellido', 'telefono']
+        read_only_fields = fields
+
+
 # --- Serializadores de Perfil ---
 # (Los movemos aquí para que UserDetailSerializer pueda usarlos)
 

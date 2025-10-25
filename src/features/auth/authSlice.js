@@ -6,7 +6,7 @@ export const login = createAsyncThunk('auth/login', async ({ dni, password }) =>
     const { data } = await api.post('/auth/jwt/create/', { dni, password });
     localStorage.setItem('access', data.access);
     localStorage.setItem('refresh', data.refresh);
-    try { api.defaults.headers.common.Authorization = `JWT ${data.access}`; } catch (_) {}
+    try { api.defaults.headers.common.Authorization = `Bearer ${data.access}`; } catch (_) {}
     return data;
     });
 
@@ -85,4 +85,7 @@ export const logoutServer = createAsyncThunk('auth/logoutServer', async (_, { ge
     });
 
 export const { setTokens } = authSlice.actions;
+
+export const selectToken = (state) => state.auth.access;
+
 export default authSlice.reducer;

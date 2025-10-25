@@ -10,13 +10,20 @@ class IsNutriOwner(permissions.BasePermission):
 
     def has_permission(self, request, view):
         # Primero, verifica que el usuario esté autenticado
+        print(f"🔍 IsNutriOwner.has_permission:")
+        print(f"   Usuario: {request.user}")
+        print(f"   ¿Autenticado?: {request.user.is_authenticated if request.user else False}")
+        
         if not request.user or not request.user.is_authenticated:
+            print("   ❌ Usuario NO autenticado")
             return False
         
         # Luego, verifica que el usuario tenga un perfil de Nutricionista
         try:
-            request.user.nutricionista
+            nutri = request.user.nutricionista
+            print(f"   ✅ Usuario tiene perfil de Nutricionista (ID: {nutri.id})")
         except Nutricionista.DoesNotExist:
+            print("   ❌ Usuario NO tiene perfil de Nutricionista")
             return False # No es un nutricionista, denegar acceso.
         
         return True # Es un nutricionista autenticado

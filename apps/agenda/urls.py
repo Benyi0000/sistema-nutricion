@@ -2,21 +2,30 @@
 # apps/agenda/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from . import views
+from .views import (
+    UbicacionViewSet,
+    TipoConsultaConfigViewSet,
+    DisponibilidadHorariaViewSet,
+    BloqueoDisponibilidadViewSet,
+    SlotsAPIView,
+    TurnoViewSet, # Importar la nueva vista
+    # TurnoViewSet (lo añadiremos después)
+)
 
 # Creamos un router para registrar nuestros ViewSets
 router = DefaultRouter()
-
-# Registra los endpoints para la configuración del Nutricionista
-router.register(r'ubicaciones', views.UbicacionViewSet, basename='ubicacion')
-router.register(r'tipos-consulta', views.TipoConsultaConfigViewSet, basename='tipo-consulta')
-router.register(r'disponibilidad', views.DisponibilidadHorariaViewSet, basename='disponibilidad')
-router.register(r'bloqueos', views.BloqueoDisponibilidadViewSet, basename='bloqueo')
-
-# --- PRÓXIMAMENTE (Día 2 - Parte B) ---
-# Aquí registraremos el TurnoViewSet y el SlotsAPIView
+router.register(r'ubicaciones', UbicacionViewSet, basename='ubicacion')
+router.register(r'tipos-consulta', TipoConsultaConfigViewSet, basename='tipoconsulta')
+router.register(r'disponibilidades', DisponibilidadHorariaViewSet, basename='disponibilidad')
+router.register(r'bloqueos', BloqueoDisponibilidadViewSet, basename='bloqueo')
+router.register(r'turnos', TurnoViewSet, basename='turno')
 
 urlpatterns = [
-    # Incluye todas las URLs generadas por el router
     path('', include(router.urls)),
+    # Nueva ruta para los slots
+    path(
+        'nutricionista/<int:nutricionista_id>/slots/',
+        SlotsAPIView.as_view(),
+        name='nutricionista-slots'
+    ),
 ]

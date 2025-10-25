@@ -19,6 +19,7 @@ urlpatterns = [
     # CKEditor uploader
     path('ckeditor/', include('ckeditor_uploader.urls')),
     path('api/user/', include('apps.user.urls')),
+    path('api/agenda/', include('apps.agenda.urls')),
     
 ]
 

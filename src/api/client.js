@@ -24,7 +24,7 @@ const api = axios.create({
     api.interceptors.request.use((config) => {
     // 1. Adjuntar token de autenticación JWT
     const access = localStorage.getItem("access");
-    if (access) config.headers.Authorization = `JWT ${access}`;
+    if (access) config.headers.Authorization = `Bearer ${access}`;
 
     // 2. Adjuntar token CSRF para métodos "inseguros"
     const isSafeMethod = /^(GET|HEAD|OPTIONS)$/.test(config.method.toUpperCase());
@@ -83,7 +83,7 @@ const api = axios.create({
             if (!newAccess) throw new Error("No access after refresh");
 
             original.headers = original.headers || {};
-            original.headers.Authorization = `JWT ${newAccess}`;
+            original.headers.Authorization = `Bearer ${newAccess}`;
 
             return api(original);
         } catch (e) {

@@ -8,7 +8,13 @@ export default defineConfig(({ mode }) => ({
     plugins: [react(), tailwindcss()],
     server: {
         port: 5173,
-        proxy: { "/api": "http://localhost:8000" },
+        proxy: { 
+            "/api": {
+                target: "http://127.0.0.1:8000",
+                changeOrigin: true,
+                secure: false,
+            }
+        },
         // Esto hace que todas las rutas 404 devuelvan index.html
         // Necesario para que React Router funcione con F5
         historyApiFallback: true,

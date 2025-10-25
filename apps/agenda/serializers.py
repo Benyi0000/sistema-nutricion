@@ -84,3 +84,97 @@ class BloqueoDisponibilidadSerializer(serializers.ModelSerializer):
             'end_time',
             'motivo',
         ]
+
+# apps/agenda/serializers.py
+# ... (importaciones existentes)
+from rest_framework import serializers # Asegúrate de importar serializers
+
+# ... (otros serializers)
+
+class TimeSlotSerializer(serializers.Serializer):
+    """Serializer simple para representar un intervalo de tiempo."""
+    inicio = serializers.DateTimeField()
+    fin = serializers.DateTimeField()
+
+
+
+# apps/agenda/serializers.py
+# ... (importaciones y serializers existentes)
+from .models import Turno, Ubicacion, TipoConsultaConfig # Asegúrate de importar los modelos necesarios
+from apps.user.serializers import SimpleUserAccountSerializer # Usaremos un serializer simple para paciente/nutri
+
+
+# ... (TimeSlotSerializer)
+
+class TurnoSerializer(serializers.ModelSerializer):
+    # Usar serializers simplificados o de solo lectura para las relaciones
+    paciente = SimpleUserAccountSerializer(read_only=True)
+    nutricionista = SimpleUserAccountSerializer(read_only=True)
+    # Permitir especificar Ubicacion y TipoConsulta por ID al crear/actualizar
+    ubicacion = serializers.PrimaryKeyRelatedField(
+        queryset=Ubicacion.objects.all(), # Se filtrará en la vista
+        required=False, # Puede ser nulo si es virtual o no aplica
+        allow_null=True
+    )
+    tipo_consulta = serializers.PrimaryKeyRelatedField(
+        queryset=TipoConsultaConfig.objects.all(), # Se filtrará en la vista
+        required=True # Asumimos que siempre se requiere un tipo
+    )
+    # Mostrar el slot como objeto inicio/fin en lugar de Range object? Opcional.
+    # slot_inicio = serializers.DateTimeField(source='slot.lower', read_only=True)
+    # slot_fin = serializers.DateTimeField(source='slot.upper', read_only=True)
+
+    class Meta:
+        model = Turno
+        fields = [
+            'id',
+            'paciente',
+            'nutricionista',
+            'ubicacion',
+            'tipo_consulta',
+            'slot', # El campo DateTimeRangeField
+            'estado',
+            'notas_paciente',
+            'notas_nutricionista',
+            'fecha_creacion',
+            # 'slot_inicio', # Si descomentaste arriba
+            # 'slot_fin',    # Si descomentaste arriba
+        ]
+        read_only_fields = [
+            'id',
+            'paciente',         # Se asignará automáticamente al crear
+            'nutricionista',    # Se asignará automáticamente al crear o por URL
+            'estado',           # Se manejará con acciones o estado inicial
+            'fecha_creacion',
+            'notas_nutricionista', # Solo el nutri debería poder editar esto
+        ]
+
+    def validate(self, data):
+        # Validaciones adicionales si son necesarias
+        # - ¿El slot está realmente disponible? (aunque la SlotsAPIView ayuda, doble check es bueno)
+        # - ¿El tipo_consulta y ubicacion pertenecen al nutricionista? (Se hará en la vista)
+        # - ¿La duración implícita en 'slot' coincide con 'tipo_consulta.duracion'?
+        slot = data.get('slot')
+        tipo_consulta = data.get('tipo_consulta')
+
+        if slot and tipo_consulta:
+             # Calcula la duración del slot proporcionado
+             duracion_slot_min = (slot.upper - slot.lower).total_seconds() / 60
+             # Obtiene la duración esperada del tipo de consulta
+             duracion_esperada_min = tipo_consulta.duracion_predeterminada.total_seconds() / 60
+             if abs(duracion_slot_min - duracion_esperada_min) > 1: # Tolerancia de 1 min por si acaso
+                 raise serializers.ValidationError(
+                     f"La duración del slot ({duracion_slot_min} min) no coincide con la duración "
+                     f"del tipo de consulta '{tipo_consulta.nombre}' ({duracion_esperada_min} min)."
+                 )
+
+        # Validar que el slot no esté en el pasado al crear (quizás con un margen)
+        if slot and slot.lower <= timezone.now() and not self.instance: # Solo al crear
+             raise serializers.ValidationError("No se pueden solicitar turnos en el pasado.")
+
+        return data
+
+    # NOTA: La asignación de 'paciente' y 'nutricionista' se hará en la vista (perform_create).
+    #       El estado inicial también se pondrá en la vista.
+
+# ... (TurnoSerializer que crearemos después)

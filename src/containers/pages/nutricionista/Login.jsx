@@ -53,7 +53,7 @@ function Login() {
             const { access: appAccess, refresh: appRefresh } = res.data;
             localStorage.setItem('access', appAccess);
             localStorage.setItem('refresh', appRefresh);
-            api.defaults.headers.common.Authorization = `JWT ${appAccess}`;
+            api.defaults.headers.common.Authorization = `Bearer ${appAccess}`;
 
             // Actualizar el estado de Redux con los tokens
             dispatch(setTokens({ access: appAccess, refresh: appRefresh }));
