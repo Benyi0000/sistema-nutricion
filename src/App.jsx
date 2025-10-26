@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import store from './store';
 import { loadUser } from './redux/actions/auth';
+import I18nProvider from './app/I18nProvider';
 
 // Pages
 import Home from './containers/pages/Home';
@@ -105,7 +106,9 @@ function AppContent() {
 function App() {
   return (
     <Provider store={store}>
-      <AppContent />
+      <I18nProvider>
+        <AppContent />
+      </I18nProvider>
     </Provider>
   );
 }

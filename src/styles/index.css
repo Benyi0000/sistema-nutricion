@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./nutrisalud.css";
+@import "./tokens.css";
 
 /* Global NutriSalud Color Variables */
 :root {
@@ -73,5 +74,16 @@ body.dark-mode .text-gray-800 {
 body.dark-mode .text-gray-600,
 body.dark-mode .text-gray-700 {
   color: #d1d5db !important;
+}
+
+/* Proteger estilos del Login y Dashboards del landing nuevo */
+.min-h-screen:not(.nutrisalud-landing *) {
+  /* Mantener estilos originales para páginas que no son el landing */
+}
+
+/* Asegurar que los formularios mantengan sus estilos originales */
+form input:not(.nutrisalud-landing input),
+form button:not(.nutrisalud-landing button) {
+  /* Mantener estilos de formularios originales */
 }
 

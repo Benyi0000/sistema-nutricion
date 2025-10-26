@@ -27,13 +27,7 @@ export const login = (credentials) => async (dispatch) => {
       payload: { user, access_token: access, refresh_token: refresh }
     });
 
-    // Redirigir según rol
-    if (user.role === 'nutricionista') {
-      window.location.href = '/dashboard/nutri';
-    } else if (user.role === 'paciente') {
-      window.location.href = '/dashboard/paciente';
-    }
-
+    // No redirigimos aquí, el componente Login se encarga de eso
     return { success: true };
   } catch (error) {
     const errorMessage = error.response?.data?.non_field_errors?.[0] || 

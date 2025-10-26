@@ -1,135 +1,99 @@
-import { connect } from 'react-redux'
-import { Link } from 'react-router-dom';
-import { useState } from 'react';
+// src/components/navigation/Navbar.jsx
+import { useTranslation } from "react-i18next";
+import BrandMark from "./BrandMark.jsx";
+import LanguageSwitcher from "../common/LanguageSwitcher.jsx";
+import DarkModeToggle from "./DarkModeToggle.jsx";
 
-function Navbar() {
-    const [isOpen, setIsOpen] = useState(false);
-    const [darkMode, setDarkMode] = useState(false);
+export default function Navbar({
+  onLogin,                    // callback opcional externo
+  showLogin = true,           // mostrar/ocultar botón login
+  containerClass = "max-w-7xl"
+}) {
+  const { t } = useTranslation();
 
-    const toggleDarkMode = () => {
-        setDarkMode(!darkMode);
-        document.body.classList.toggle('dark-mode');
-    };
+  const goHome = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
-    return(
-        <nav className='w-full py-2 shadow-sm fixed top-0 z-50' style={{backgroundColor: '#e8ddf5'}}>
-            <div className="container mx-auto px-4">
-                <div className="flex items-center justify-between h-14">
-                    {/* Logo */}
-                    <div className="flex items-center">
-                        <Link to="/" className="flex items-center">
-                            <div className="w-10 h-10 rounded flex items-center justify-center mr-3" style={{backgroundColor: '#9575cd'}}>
-                                <span className="text-white font-bold text-sm">N</span>
-                            </div>
-                            <span className="text-xl font-bold text-gray-800">
-                                NutriSalud
-                            </span>
-                        </Link>
-                    </div>
-                    
-                    {/* Desktop Menu */}
-                    <div className="hidden md:flex items-center space-x-6">
-                        <a href="#servicios" className="text-gray-700 transition-colors" style={{'--hover-color': '#9575cd'}} onMouseEnter={e => e.target.style.color = '#9575cd'} onMouseLeave={e => e.target.style.color = '#374151'}>
-                            Servicios
-                        </a>
-                        <a href="#beneficios" className="text-gray-700 transition-colors" onMouseEnter={e => e.target.style.color = '#9575cd'} onMouseLeave={e => e.target.style.color = '#374151'}>
-                            Beneficios
-                        </a>
-                        <a href="#testimonios" className="text-gray-700 transition-colors" onMouseEnter={e => e.target.style.color = '#9575cd'} onMouseLeave={e => e.target.style.color = '#374151'}>
-                            Testimonios
-                        </a>
-                        <Link
-                            to="/auth/login"
-                            className="text-white px-4 py-2 rounded font-medium transition-colors"
-                            style={{backgroundColor: '#b39ddb'}}
-                            onMouseEnter={e => e.target.style.backgroundColor = '#9575cd'}
-                            onMouseLeave={e => e.target.style.backgroundColor = '#b39ddb'}
-                        >
-                            Login
-                        </Link>
-                        
-                        {/* Dark mode toggle */}
-                        <button
-                            onClick={toggleDarkMode}
-                            className="p-2 rounded border border-gray-300 hover:bg-gray-100 transition-colors"
-                            aria-label="Toggle dark mode"
-                        >
-                            <svg className="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                            </svg>
-                        </button>
-                    </div>
+  const goLogin = () => {
+    if (onLogin) return onLogin();
+    window.location.href = "/auth/login";
+  };
 
-                    {/* Mobile menu button */}
-                    <div className="md:hidden">
-                        <button
-                            onClick={() => setIsOpen(!isOpen)}
-                            className="p-2 rounded-md text-gray-700 hover:bg-gray-100"
-                            onMouseEnter={e => e.target.style.color = '#9575cd'}
-                            onMouseLeave={e => e.target.style.color = '#374151'}
-                        >
-                            <svg className="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-                                {isOpen ? (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                ) : (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                                )}
-                            </svg>
-                        </button>
-                    </div>
-                </div>
+  const scrollToId = (id) => (e) => {
+    e.preventDefault();
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
-                {/* Mobile Menu */}
-                {isOpen && (
-                    <div className="md:hidden">
-                        <div className="px-2 pt-2 pb-3 space-y-1 border-t border-gray-200" style={{backgroundColor: '#e8ddf5'}}>
-                            <a
-                                href="#servicios"
-                                className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
-                                onMouseEnter={e => e.target.style.color = '#9575cd'}
-                                onMouseLeave={e => e.target.style.color = '#374151'}
-                                onClick={() => setIsOpen(false)}
-                            >
-                                Servicios
-                            </a>
-                            <a
-                                href="#beneficios"
-                                className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
-                                onMouseEnter={e => e.target.style.color = '#9575cd'}
-                                onMouseLeave={e => e.target.style.color = '#374151'}
-                                onClick={() => setIsOpen(false)}
-                            >
-                                Beneficios
-                            </a>
-                            <a
-                                href="#testimonios"
-                                className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
-                                onMouseEnter={e => e.target.style.color = '#9575cd'}
-                                onMouseLeave={e => e.target.style.color = '#374151'}
-                                onClick={() => setIsOpen(false)}
-                            >
-                                Testimonios
-                            </a>
-                            <Link
-                                to="/auth/login"
-                                className="block w-full text-center text-white px-4 py-2 rounded font-semibold transition-colors mt-4"
-                                style={{backgroundColor: '#b39ddb'}}
-                                onMouseEnter={e => e.target.style.backgroundColor = '#9575cd'}
-                                onMouseLeave={e => e.target.style.backgroundColor = '#b39ddb'}
-                                onClick={() => setIsOpen(false)}
-                            >
-                                Login
-                            </Link>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </nav>
-        )    
+  const links = [
+    { id: "services", label: t("nav.services", "Servicios") },
+    { id: "why-us", label: t("nav.benefits", "Beneficios") },
+    { id: "testimonials", label: t("nav.testimonials", "Testimonios") },
+    // si quieres también FAQ, descomenta:
+    // { id: "faq", label: t("nav.faq", "Preguntas") },
+  ];
+
+  return (
+    <header
+      className="
+        sticky top-0 z-40 border-b 
+        bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60
+        dark:bg-neutral-900/80 dark:supports-[backdrop-filter]:bg-neutral-900/60
+        border-gray-200/70 dark:border-neutral-800
+      "
+    >
+      <nav
+        aria-label="Primary"
+        className={`mx-auto ${containerClass} h-16 px-6 md:px-8 flex items-center justify-between gap-4`}
+      >
+        {/* Marca */}
+        <div className="min-w-0">
+          <BrandMark onClick={goHome} />
+        </div>
+
+        {/* Links al centro (solo md+) */}
+        <ul className="hidden md:flex items-center gap-6">
+          {links.map((link) => (
+            <li key={link.id}>
+              <a
+                href={`#${link.id}`}
+                onClick={scrollToId(link.id)}
+                className="
+                  inline-flex items-center rounded-full px-3 py-1.5 text-sm font-medium
+                  text-[var(--text-1)]/85 hover:text-[var(--text-1)]
+                  hover:bg-black/[0.04] dark:hover:bg-white/[0.08]
+                  transition
+                "
+              >
+                {link.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+
+        {/* Acciones a la derecha */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {showLogin && (
+            <button
+              onClick={goLogin}
+              className="
+                hidden sm:inline-flex h-9 items-center rounded-full border px-3.5 
+                text-sm font-medium
+                text-gray-800 hover:bg-black/5
+                dark:text-gray-100 dark:hover:bg-white/10
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400
+                transition
+              "
+              aria-label={t("common.login")}
+            >
+              {t("common.login")}
+            </button>
+          )}
+          <LanguageSwitcher />
+          <DarkModeToggle />
+        </div>
+      </nav>
+    </header>
+  );
 }
-
-    const mapStateToProps = () => ({ });
-    
-
-    export default connect(mapStateToProps,{
-    })(Navbar);

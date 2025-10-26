@@ -1,0 +1,21 @@
+<!-- /public/patterns/whyus-mask.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <g fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.95">
+    <!-- check -->
+    <path d="M18 24 l8 8 l14 -14" />
+    <!-- estrella -->
+    <path d="M74 22 l3 7 l8 1 l-6 5 l2 8 l-7 -4 l-7 4 l2 -8 l-6 -5 l8 -1 z" />
+    <!-- escudo -->
+    <path d="M24 92 q0 -10 10 -10 h8 q10 0 10 10 v6 q0 9 -14 14 q-14 -5 -14 -14 z" />
+    <!-- badge -->
+    <circle cx="96" cy="82" r="10"/>
+    <path d="M96 74 v16 M88 82 h16" />
+  </g>
+  <g fill="#fff" opacity="0.35">
+    <circle cx="10" cy="60" r="1.1"/>
+    <circle cx="56" cy="46" r="1.1"/>
+    <circle cx="64" cy="104" r="1.1"/>
+    <circle cx="108" cy="18" r="1.1"/>
+    <circle cx="86" cy="108" r="1.1"/>
+  </g>
+</svg>

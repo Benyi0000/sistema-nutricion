@@ -1,16 +1,17 @@
+// src/app/App.jsx
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import Navbar from "../../components/navigation/Navbar";
-import Hero from "../../components/landing/Hero";
-import ServicesSection from "../../components/landing/ServicesSection";
-import WhyUsSection from "../../components/landing/WhyUsSection";
-import NutritionistSection from "../../components/landing/NutritionistSection";
-import TestimonialsSection from "../../components/landing/TestimonialsSection";
-import FAQSection from "../../components/landing/FAQSection";
-import SiteFooter from "../../components/layout/SiteFooter";
-import FabWhatsApp from "../../components/common/FabWhatsApp";
-import { BRAND } from "../../lib/brand";
+import Navbar from "../components/navigation/Navbar.jsx";
+import Hero from "../components/landing/Hero.jsx";
+import ServicesSection from "../components/landing/ServicesSection.jsx";
+import WhyUsSection from "../components/landing/WhyUsSection.jsx";
+import NutritionistSection from "../components/landing/NutritionistSection.jsx";
+import TestimonialsSection from "../components/landing/TestimonialsSection.jsx";
+import FAQSection from "../components/landing/FAQSection.jsx";
+import SiteFooter from "../components/layout/SiteFooter.jsx";
+import FabWhatsApp from "../components/common/FabWhatsApp.jsx";
+import { BRAND } from "../lib/brand";
 
 /* === Reveal on scroll === */
 function useRevealOnScroll() {
@@ -42,7 +43,7 @@ function RevealSection({ as: Tag = "section", className = "", children, ...rest 
   );
 }
 
-function Home() {
+export default function App() {
   const { t } = useTranslation();
 
   // contenedor reutilizable
@@ -51,7 +52,7 @@ function Home() {
   );
 
   return (
-    <div className="nutrisalud-landing min-h-dvh text-[var(--text-1)] antialiased bg-[var(--surface-0)]">
+    <div className="min-h-dvh text-[var(--text-1)] antialiased bg-[var(--surface-0)]">
       <Navbar />
 
       <main id="content" className="relative scroll-pt-16 page-wash">
@@ -138,5 +139,3 @@ function Home() {
     </div>
   );
 }
-
-export default Home;
