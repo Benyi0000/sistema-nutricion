@@ -560,9 +560,12 @@ class PlantillaConsultaViewSet(viewsets.ModelViewSet):
         return context
     
     def perform_create(self, serializer):
-        """Asignar owner al crear plantilla"""
-        nutri = getattr(self.request.user, 'nutricionista', None)
-        serializer.save(owner=nutri)
+        """El owner ya se asigna en el serializer desde el contexto"""
+        serializer.save()
+    
+    def perform_update(self, serializer):
+        """Actualizar plantilla"""
+        serializer.save()
     
     def perform_destroy(self, instance):
         """Solo permitir eliminar plantillas propias (no del sistema)"""

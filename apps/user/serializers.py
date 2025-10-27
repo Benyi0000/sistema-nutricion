@@ -3,6 +3,7 @@
 from djoser.serializers import UserCreateSerializer as BaseCreate, UserSerializer as BaseUser
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
 from rest_framework import serializers
 from datetime import date
 import re
@@ -598,6 +599,7 @@ class ConsultaInicialSerializer(serializers.Serializer):
         )
         return paciente, creado, password_inicial
 
+    @transaction.atomic
     def create(self, validated):
         request = self.context.get("request")
         user = getattr(request, "user", None)
@@ -656,6 +658,7 @@ class ConsultaSeguimientoSerializer(serializers.Serializer):
     plantilla_snapshot = serializers.DictField(required=False)
     plantilla_usada = serializers.IntegerField(required=False, allow_null=True)  # ID de PlantillaConsulta
 
+    @transaction.atomic
     def create(self, validated):
         request = self.context.get("request")
         user = getattr(request, "user", None)

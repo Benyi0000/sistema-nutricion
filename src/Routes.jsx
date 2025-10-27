@@ -7,6 +7,7 @@ import ConsultaInicial from './containers/pages/nutricionista/ConsultaInicial';
 import SeguimientoCrear from './containers/pages/nutricionista/SeguimientoCrear';
 import ChangePassword from './containers/pages/auth/ChangePassword';
 import PacientesList from './containers/pages/nutricionista/PacientesList';
+import PacienteHistorialPage from './containers/pages/nutricionista/PacienteHistorialPage';
 
 // --- Layouts (Confirmados Existentes) ---
 import AdminLayout from './hocs/layouts/AdminLayout';
@@ -75,6 +76,7 @@ export default function AppRoutes() {
             >
                 <Route index element={<DashboardNutri />} />
                 <Route path="pacientes" element={<PacientesList />} />
+                <Route path="pacientes/:pacienteId/historial" element={<PacienteHistorialPage />} />
                 <Route path="consultas" element={<ConsultasIndex />} />
                 <Route path="consultas/inicial" element={<ConsultaInicial />} />
                 <Route path="seguimientos/:pacienteId" element={<SeguimientoCrear />} />
