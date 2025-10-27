@@ -39,11 +39,13 @@ import ConfiguracionPacientePage from './containers/pages/paciente/Configuracion
 import AdminRoute from './hocs/routes/AdminRoute';
 import NutriRoute from './hocs/routes/NutriRoute';
 import PacienteRoute from './hocs/routes/PacienteRoute';
+import PlantillasPage from './containers/pages/nutricionista/PlantillasPage';
+import PlantillaFormPage from './containers/pages/nutricionista/PlantillaFormPage';
+import PlantillaDetailPage from './containers/pages/nutricionista/PlantillaDetailPage';
 
 // --- Placeholders simples (si aún no hiciste estas páginas) ---
 const ConsultasIndex = () => <div className="text-gray-700 p-4">Consultas — elige "Inicial" o "Seguimiento"</div>;
 const BancoPreguntas = () => <div className="text-gray-700 p-4">Banco de preguntas</div>;
-const PlantillasIndex = () => <div className="text-gray-700 p-4">Plantillas</div>;
 
 export default function AppRoutes() {
     return (
@@ -77,7 +79,10 @@ export default function AppRoutes() {
                 <Route path="consultas/inicial" element={<ConsultaInicial />} />
                 <Route path="seguimientos/:pacienteId" element={<SeguimientoCrear />} />
                 <Route path="preguntas" element={<BancoPreguntas />} />
-                <Route path="plantillas" element={<PlantillasIndex />} />
+                <Route path="plantillas" element={<PlantillasPage />} />
+                <Route path="plantillas/crear" element={<PlantillaFormPage />} />
+                <Route path="plantillas/:id" element={<PlantillaDetailPage />} />
+                <Route path="plantillas/:id/editar" element={<PlantillaFormPage />} />
                 <Route path="configuracion" element={<Configuracion />} />
                 {/* ¡NUEVAS Rutas Agenda Nutricionista! */}
                 <Route path="agenda/configuracion" element={<AgendaConfigPage />} />

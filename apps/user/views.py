@@ -1,11 +1,13 @@
 # apps/user/views.py
 
-from rest_framework import status, permissions, generics
+from rest_framework import status, permissions, generics, viewsets, mixins
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.db import models as django_models
 from .models import Especialidad, Nutricionista
 from .serializers import (
     NutricionistaAltaSerializer,
@@ -486,3 +488,207 @@ def google_oauth_login(request):
             {'non_field_errors': [f'Error al iniciar sesión: {str(e)}']},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Sistema de Plantillas
+# ──────────────────────────────────────────────────────────────────────
+
+from .models import PlantillaConsulta, PlantillaPregunta
+from .serializers import (
+    PlantillaConsultaSerializer,
+    PlantillaConsultaListSerializer,
+    PlantillaConsultaCreateUpdateSerializer,
+    PlantillaPreguntaSerializer,
+)
+
+
+class PlantillaConsultaViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar plantillas de consulta.
+    
+    - list: Listar plantillas del nutricionista + plantillas del sistema
+    - retrieve: Detalle de plantilla con todas sus preguntas
+    - create: Crear nueva plantilla
+    - update/partial_update: Actualizar plantilla
+    - destroy: Eliminar plantilla (solo propias)
+    
+    Actions adicionales:
+    - duplicar: Duplicar una plantilla existente
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """
+        Devuelve:
+        - Plantillas del sistema (owner=None)
+        - Plantillas del nutricionista actual (owner=nutricionista)
+        """
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        if not nutri:
+            # Si no es nutricionista, devolver vacío
+            return PlantillaConsulta.objects.none()
+        
+        # Filtrar por tipo_consulta si se especifica en query params
+        queryset = PlantillaConsulta.objects.filter(
+            Q(owner=None) | Q(owner=nutri)
+        ).select_related('owner').prefetch_related('preguntas_config__pregunta')
+        
+        tipo_consulta = self.request.query_params.get('tipo_consulta')
+        if tipo_consulta:
+            queryset = queryset.filter(tipo_consulta=tipo_consulta)
+        
+        activo = self.request.query_params.get('activo')
+        if activo is not None:
+            queryset = queryset.filter(activo=activo.lower() in ['true', '1', 'yes'])
+        
+        return queryset.order_by('-es_predeterminada', 'tipo_consulta', 'nombre')
+    
+    def get_serializer_class(self):
+        """Usar serializers diferentes según la acción"""
+        if self.action == 'list':
+            return PlantillaConsultaListSerializer
+        elif self.action in ['create', 'update', 'partial_update']:
+            return PlantillaConsultaCreateUpdateSerializer
+        return PlantillaConsultaSerializer
+    
+    def get_serializer_context(self):
+        """Agregar owner al contexto para create/update"""
+        context = super().get_serializer_context()
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        context['owner'] = nutri
+        return context
+    
+    def perform_create(self, serializer):
+        """Asignar owner al crear plantilla"""
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        serializer.save(owner=nutri)
+    
+    def perform_destroy(self, instance):
+        """Solo permitir eliminar plantillas propias (no del sistema)"""
+        if instance.owner_id is None:
+            raise PermissionDenied("No puedes eliminar plantillas del sistema")
+        
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        if instance.owner_id != nutri.id:
+            raise PermissionDenied("No puedes eliminar plantillas de otros nutricionistas")
+        
+        instance.delete()
+    
+    @action(detail=True, methods=['post'])
+    def duplicar(self, request, pk=None):
+        """
+        Duplica una plantilla existente.
+        
+        Body (opcional):
+        - nuevo_nombre: str (default: "{nombre} (copia)")
+        """
+        plantilla = self.get_object()
+        nutri = getattr(request.user, 'nutricionista', None)
+        
+        nuevo_nombre = request.data.get('nuevo_nombre', f"{plantilla.nombre} (copia)")
+        nueva_plantilla = plantilla.duplicar(nuevo_owner=nutri, nuevo_nombre=nuevo_nombre)
+        
+        serializer = PlantillaConsultaSerializer(nueva_plantilla)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['get'])
+    def predeterminadas(self, request):
+        """
+        Devuelve las plantillas predeterminadas del nutricionista.
+        Query params:
+        - tipo_consulta: INICIAL o SEGUIMIENTO (opcional)
+        """
+        nutri = getattr(request.user, 'nutricionista', None)
+        if not nutri:
+            return Response([], status=status.HTTP_200_OK)
+        
+        queryset = PlantillaConsulta.objects.filter(
+            owner=nutri,
+            es_predeterminada=True,
+            activo=True
+        )
+        
+        tipo_consulta = request.query_params.get('tipo_consulta')
+        if tipo_consulta:
+            queryset = queryset.filter(tipo_consulta=tipo_consulta)
+        
+        serializer = PlantillaConsultaListSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class PlantillaPreguntaViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar preguntas dentro de una plantilla.
+    Endpoint anidado: /plantillas/{plantilla_id}/preguntas/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = PlantillaPreguntaSerializer
+    
+    def get_queryset(self):
+        """Filtrar preguntas de la plantilla especificada"""
+        plantilla_id = self.kwargs.get('plantilla_pk')
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        
+        if not nutri or not plantilla_id:
+            return PlantillaPregunta.objects.none()
+        
+        # Verificar que la plantilla pertenezca al nutricionista o sea del sistema
+        plantilla = PlantillaConsulta.objects.filter(
+            id=plantilla_id
+        ).filter(
+            Q(owner=None) | Q(owner=nutri)
+        ).first()
+        
+        if not plantilla:
+            return PlantillaPregunta.objects.none()
+        
+        return PlantillaPregunta.objects.filter(
+            plantilla=plantilla
+        ).select_related('pregunta').order_by('orden')
+    
+    def get_serializer_context(self):
+        """Agregar plantilla al contexto"""
+        context = super().get_serializer_context()
+        plantilla_id = self.kwargs.get('plantilla_pk')
+        if plantilla_id:
+            context['plantilla'] = PlantillaConsulta.objects.filter(id=plantilla_id).first()
+        return context
+    
+    def perform_create(self, serializer):
+        """Asignar plantilla al crear pregunta"""
+        plantilla_id = self.kwargs.get('plantilla_pk')
+        plantilla = PlantillaConsulta.objects.get(id=plantilla_id)
+        
+        # Verificar permisos: solo el owner puede editar
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        if plantilla.owner_id and plantilla.owner_id != nutri.id:
+            raise PermissionDenied("No puedes modificar plantillas de otros nutricionistas")
+        if plantilla.owner_id is None:
+            raise PermissionDenied("No puedes modificar plantillas del sistema")
+        
+        serializer.save(plantilla=plantilla)
+    
+    def perform_update(self, serializer):
+        """Verificar permisos antes de actualizar"""
+        instance = self.get_object()
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        
+        if instance.plantilla.owner_id and instance.plantilla.owner_id != nutri.id:
+            raise PermissionDenied("No puedes modificar plantillas de otros nutricionistas")
+        if instance.plantilla.owner_id is None:
+            raise PermissionDenied("No puedes modificar plantillas del sistema")
+        
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Verificar permisos antes de eliminar"""
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        
+        if instance.plantilla.owner_id and instance.plantilla.owner_id != nutri.id:
+            raise PermissionDenied("No puedes modificar plantillas de otros nutricionistas")
+        if instance.plantilla.owner_id is None:
+            raise PermissionDenied("No puedes modificar plantillas del sistema")
+        
+        instance.delete()
+

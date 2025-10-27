@@ -144,3 +144,99 @@ const intoArray = (data) =>
 
 // 👇 MUY IMPORTANTE para que el import por default en store.js funcione
 export default slice.reducer;
+
+// ────────────────────────────────────────────────────────────────────────────────
+// RTK Query API para preguntas (para usar en PlantillaFormPage)
+// ────────────────────────────────────────────────────────────────────────────────
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+
+export const preguntasApi = createApi({
+    reducerPath: 'preguntasApi',
+    baseQuery: fetchBaseQuery({
+        baseUrl: '/api/user',
+        prepareHeaders: (headers, { getState }) => {
+            const token = getState().auth?.access;
+            if (token) {
+                headers.set('Authorization', `Bearer ${token}`);
+            }
+            return headers;
+        },
+    }),
+    tagTypes: ['Pregunta'],
+    endpoints: (builder) => ({
+        // Obtener todas las preguntas (con filtros opcionales)
+        getPreguntas: builder.query({
+            query: (params = {}) => {
+                const searchParams = new URLSearchParams();
+                
+                if (params.scope) {
+                    searchParams.append('scope', params.scope);
+                }
+                if (params.activo !== undefined) {
+                    searchParams.append('activo', params.activo);
+                }
+                if (params.tipo) {
+                    searchParams.append('tipo', params.tipo);
+                }
+                
+                const queryString = searchParams.toString();
+                return `/preguntas/${queryString ? `?${queryString}` : ''}`;
+            },
+            transformResponse: (response) => intoArray(response),
+            providesTags: (result) =>
+                result
+                    ? [
+                        ...result.map(({ id }) => ({ type: 'Pregunta', id })),
+                        { type: 'Pregunta', id: 'LIST' },
+                    ]
+                    : [{ type: 'Pregunta', id: 'LIST' }],
+        }),
+
+        // Obtener pregunta por ID
+        getPregunta: builder.query({
+            query: (id) => `/preguntas/${id}/`,
+            providesTags: (result, error, id) => [{ type: 'Pregunta', id }],
+        }),
+
+        // Crear pregunta personalizada
+        createPregunta: builder.mutation({
+            query: (body) => ({
+                url: '/preguntas/personalizadas/',
+                method: 'POST',
+                body,
+            }),
+            invalidatesTags: [{ type: 'Pregunta', id: 'LIST' }],
+        }),
+
+        // Actualizar pregunta
+        updatePregunta: builder.mutation({
+            query: ({ id, ...body }) => ({
+                url: `/preguntas/${id}/`,
+                method: 'PATCH',
+                body,
+            }),
+            invalidatesTags: (result, error, { id }) => [
+                { type: 'Pregunta', id },
+                { type: 'Pregunta', id: 'LIST' },
+            ],
+        }),
+
+        // Eliminar pregunta
+        deletePregunta: builder.mutation({
+            query: (id) => ({
+                url: `/preguntas/${id}/`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: [{ type: 'Pregunta', id: 'LIST' }],
+        }),
+    }),
+});
+
+// Exportar hooks generados automáticamente
+export const {
+    useGetPreguntasQuery,
+    useGetPreguntaQuery,
+    useCreatePreguntaMutation,
+    useUpdatePreguntaMutation,
+    useDeletePreguntaMutation,
+} = preguntasApi;

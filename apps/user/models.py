@@ -319,12 +319,22 @@ class Consulta(models.Model):
     tipo = models.CharField(max_length=15, choices=TipoConsulta.choices, default=TipoConsulta.INICIAL)
     notas = models.TextField(blank=True)
 
+    # Referencia a la plantilla usada (opcional, puede ser NULL si se hizo manual)
+    plantilla_usada = models.ForeignKey(
+        'PlantillaConsulta',
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='consultas_realizadas',
+        help_text="Plantilla que se usó para crear esta consulta. NULL si fue manual."
+    )
+
     # Snapshots:
     # respuestas: lista de objetos {pregunta, tipo, codigo, unidad, valor, observacion}
     respuestas = models.JSONField(default=list, blank=True)
     # metricas derivadas (imc, etc)
     metricas = models.JSONField(default=dict, blank=True)
     # plantilla usada (qué preguntas se mostraron y si fueron seleccionadas)
+    # Este es un SNAPSHOT inmutable de la plantilla al momento de la consulta
     plantilla_snapshot = models.JSONField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -334,6 +344,7 @@ class Consulta(models.Model):
         indexes = [
             models.Index(fields=["fecha"]),
             models.Index(fields=["tipo"]),
+            models.Index(fields=["plantilla_usada"]),
         ]
         ordering = ["-fecha", "-id"]
 
@@ -343,3 +354,233 @@ class Consulta(models.Model):
     @property
     def imc(self):
         return (self.metricas or {}).get("imc")
+    
+    def generar_snapshot_de_plantilla(self, plantilla):
+        """
+        Genera un snapshot inmutable de una PlantillaConsulta.
+        Guarda toda la información relevante para saber exactamente
+        qué preguntas se mostraron y cómo estaban configuradas.
+        """
+        if not plantilla:
+            return None
+        
+        preguntas_snapshot = []
+        for pp in plantilla.preguntas_config.select_related('pregunta').order_by('orden'):
+            preguntas_snapshot.append({
+                'orden': pp.orden,
+                'visible': pp.visible,
+                'requerido': pp.requerido_en_plantilla,
+                'config': pp.config,
+                'pregunta': {
+                    'id': pp.pregunta.id,
+                    'texto': pp.pregunta.texto,
+                    'tipo': pp.pregunta.tipo,
+                    'codigo': pp.pregunta.codigo,
+                    'unidad': pp.pregunta.unidad,
+                    'opciones': pp.pregunta.opciones,
+                    'requerido_base': pp.pregunta.requerido,
+                }
+            })
+        
+        return {
+            'plantilla_id': plantilla.id,
+            'nombre': plantilla.nombre,
+            'descripcion': plantilla.descripcion,
+            'tipo_consulta': plantilla.tipo_consulta,
+            'config': plantilla.config,
+            'preguntas': preguntas_snapshot,
+            'snapshot_date': timezone.now().isoformat(),
+        }
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Sistema de Plantillas Reutilizables
+# ────────────────────────────────────────────────────────────────────────────────
+
+class PlantillaConsulta(models.Model):
+    """
+    Plantilla reutilizable de preguntas para consultas.
+    - Si owner=None → plantilla global del sistema (predeterminada)
+    - Si owner=nutricionista → plantilla personalizada del nutricionista
+    """
+    owner = models.ForeignKey(
+        'Nutricionista',
+        null=True, blank=True,
+        on_delete=models.CASCADE,
+        related_name='plantillas_consulta',
+        help_text="NULL = plantilla del sistema, con valor = plantilla del nutricionista"
+    )
+    
+    nombre = models.CharField(
+        max_length=150,
+        help_text="Ej: 'Consulta Diabetes', 'Primera vez deportistas'"
+    )
+    descripcion = models.TextField(blank=True)
+    
+    tipo_consulta = models.CharField(
+        max_length=15,
+        choices=TipoConsulta.choices,
+        default=TipoConsulta.INICIAL,
+        help_text="Tipo de consulta para la que se usa esta plantilla"
+    )
+    
+    es_predeterminada = models.BooleanField(
+        default=False,
+        help_text="Si es True, se usa automáticamente para nuevas consultas de este tipo"
+    )
+    
+    activo = models.BooleanField(default=True)
+    
+    # Configuración adicional (JSONB para flexibilidad)
+    config = models.JSONField(
+        default=dict, 
+        blank=True,
+        help_text="Ej: {calcular_imc: true, mostrar_graficos: false, color: '#4F46E5'}"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "plantilla de consulta"
+        verbose_name_plural = "plantillas de consulta"
+        ordering = ['-es_predeterminada', 'tipo_consulta', 'nombre']
+        indexes = [
+            models.Index(fields=['owner', 'activo']),
+            models.Index(fields=['tipo_consulta', 'es_predeterminada']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        owner_label = "Sistema" if self.owner_id is None else f"Nutri {self.owner_id}"
+        default_marker = " [★ Predeterminada]" if self.es_predeterminada else ""
+        return f"[{owner_label}] {self.nombre}{default_marker}"
+    
+    def clean(self):
+        """Validaciones de negocio"""
+        super().clean()
+        
+        # Validar que solo haya una plantilla predeterminada por tipo y owner
+        if self.es_predeterminada and self.activo:
+            from django.core.exceptions import ValidationError
+            
+            conflicto = PlantillaConsulta.objects.filter(
+                owner=self.owner,
+                tipo_consulta=self.tipo_consulta,
+                es_predeterminada=True,
+                activo=True
+            ).exclude(pk=self.pk)
+            
+            if conflicto.exists():
+                raise ValidationError(
+                    f"Ya existe una plantilla predeterminada para consultas de tipo "
+                    f"'{self.get_tipo_consulta_display()}'. "
+                    f"Desactiva la otra primero o marca esta como no predeterminada."
+                )
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    def duplicar(self, nuevo_owner=None, nuevo_nombre=None):
+        """
+        Crea una copia de esta plantilla con sus preguntas.
+        Útil para que un nutricionista copie una plantilla del sistema y la personalice.
+        """
+        nueva_plantilla = PlantillaConsulta.objects.create(
+            owner=nuevo_owner or self.owner,
+            nombre=nuevo_nombre or f"{self.nombre} (copia)",
+            descripcion=self.descripcion,
+            tipo_consulta=self.tipo_consulta,
+            es_predeterminada=False,
+            activo=True,
+            config=self.config.copy() if self.config else {}
+        )
+        
+        # Copiar preguntas
+        for pp in self.preguntas_config.all():
+            PlantillaPregunta.objects.create(
+                plantilla=nueva_plantilla,
+                pregunta=pp.pregunta,
+                orden=pp.orden,
+                requerido_en_plantilla=pp.requerido_en_plantilla,
+                visible=pp.visible,
+                config=pp.config.copy() if pp.config else {}
+            )
+        
+        return nueva_plantilla
+
+
+class PlantillaPregunta(models.Model):
+    """
+    Relación M2M enriquecida entre PlantillaConsulta y Pregunta.
+    Define qué preguntas van en cada plantilla, en qué orden, y con qué configuración.
+    """
+    plantilla = models.ForeignKey(
+        PlantillaConsulta,
+        on_delete=models.CASCADE,
+        related_name='preguntas_config'
+    )
+    pregunta = models.ForeignKey(
+        Pregunta,
+        on_delete=models.CASCADE,
+        related_name='usos_en_plantillas'
+    )
+    
+    orden = models.IntegerField(
+        default=0,
+        help_text="Orden de aparición en la plantilla"
+    )
+    
+    requerido_en_plantilla = models.BooleanField(
+        default=False,
+        help_text="Override: puede ser opcional en Pregunta pero requerida en esta plantilla"
+    )
+    
+    visible = models.BooleanField(
+        default=True,
+        help_text="Si está oculta, no se muestra pero puede usarse para cálculos"
+    )
+    
+    # Configuración específica de esta pregunta EN esta plantilla (JSONB)
+    config = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Ej: {valor_default: '0', placeholder: 'Ingresar peso en kg', ayuda_extra: '...'}"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = "pregunta en plantilla"
+        verbose_name_plural = "preguntas en plantillas"
+        ordering = ['orden', 'id']
+        unique_together = [('plantilla', 'pregunta')]
+        indexes = [
+            models.Index(fields=['plantilla', 'orden']),
+            models.Index(fields=['pregunta']),
+            models.Index(fields=['visible']),
+        ]
+    
+    def __str__(self):
+        visible_marker = "" if self.visible else " [oculta]"
+        req_marker = " *" if self.requerido_en_plantilla else ""
+        return f"{self.plantilla.nombre} → #{self.orden} {self.pregunta.texto}{req_marker}{visible_marker}"
+    
+    def clean(self):
+        """Validaciones"""
+        super().clean()
+        from django.core.exceptions import ValidationError
+        
+        # Si la pregunta es personalizada del nutricionista, debe ser del mismo owner que la plantilla
+        if (self.pregunta.owner_id is not None and 
+            self.plantilla.owner_id is not None and 
+            self.pregunta.owner_id != self.plantilla.owner_id):
+            raise ValidationError(
+                f"No puedes usar la pregunta '{self.pregunta.texto}' (de otro nutricionista) "
+                f"en tu plantilla '{self.plantilla.nombre}'."
+            )
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

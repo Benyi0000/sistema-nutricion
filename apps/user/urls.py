@@ -1,5 +1,6 @@
-from django.urls import path
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework_nested import routers
 
 from .views import (
     NutricionistaAltaView,
@@ -18,6 +19,8 @@ from .views import (
     custom_disconnect,
     link_google_account,
     google_oauth_login,
+    PlantillaConsultaViewSet,  # <- ViewSet para plantillas
+    PlantillaPreguntaViewSet,  # <- ViewSet para preguntas en plantillas
 )
 
 # Router para endpoints de preguntas personalizadas (list/create)
@@ -26,6 +29,22 @@ router.register(
     r"preguntas/personalizadas",
     PreguntaPersonalizadaViewSet,
     basename="pregunta-personalizada",
+)
+
+# Router para plantillas de consulta
+router.register(
+    r"plantillas",
+    PlantillaConsultaViewSet,
+    basename="plantilla-consulta",
+)
+
+# Router anidado para preguntas dentro de plantillas
+# /plantillas/{plantilla_id}/preguntas/
+plantillas_router = routers.NestedSimpleRouter(router, r'plantillas', lookup='plantilla')
+plantillas_router.register(
+    r'preguntas',
+    PlantillaPreguntaViewSet,
+    basename='plantilla-preguntas'
 )
 
 urlpatterns = [
@@ -46,5 +65,6 @@ urlpatterns = [
     path("csrf-cookie/", csrf_cookie_view),
 ]
 
-# Agrega las rutas del router (preguntas/personalizadas/)
+# Agrega las rutas del router (preguntas/personalizadas/ y plantillas/)
 urlpatterns += router.urls
+urlpatterns += plantillas_router.urls

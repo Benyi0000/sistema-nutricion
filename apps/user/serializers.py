@@ -542,6 +542,7 @@ class ConsultaInicialSerializer(serializers.Serializer):
     # cada item: {pregunta, tipo, codigo, unidad, valor, observacion}
     respuestas = serializers.ListField(child=serializers.DictField(), required=False, allow_empty=True)
     plantilla_snapshot = serializers.DictField(required=False)
+    plantilla_usada = serializers.IntegerField(required=False, allow_null=True)  # ID de PlantillaConsulta
 
     def _get_or_create_paciente(self, nutri, data):
         dni = data["dni"].strip()
@@ -613,6 +614,16 @@ class ConsultaInicialSerializer(serializers.Serializer):
 
         metricas = _calc_metricas_from_respuestas(respuestas)
 
+        # Manejar plantilla_usada
+        plantilla_usada_id = validated.get("plantilla_usada")
+        plantilla_obj = None
+        if plantilla_usada_id:
+            try:
+                from .models import PlantillaConsulta
+                plantilla_obj = PlantillaConsulta.objects.get(id=plantilla_usada_id)
+            except PlantillaConsulta.DoesNotExist:
+                pass
+
         consulta = Consulta.objects.create(
             paciente=paciente,
             nutricionista=nutri,
@@ -620,6 +631,7 @@ class ConsultaInicialSerializer(serializers.Serializer):
             notas=validated.get("notas") or "",
             respuestas=respuestas,
             metricas=metricas,
+            plantilla_usada=plantilla_obj,
             plantilla_snapshot=validated.get("plantilla_snapshot"),
         )
 
@@ -642,6 +654,7 @@ class ConsultaSeguimientoSerializer(serializers.Serializer):
     notas = serializers.CharField(required=False, allow_blank=True)
     respuestas = serializers.ListField(child=serializers.DictField(), required=False, allow_empty=True)
     plantilla_snapshot = serializers.DictField(required=False)
+    plantilla_usada = serializers.IntegerField(required=False, allow_null=True)  # ID de PlantillaConsulta
 
     def create(self, validated):
         request = self.context.get("request")
@@ -670,6 +683,16 @@ class ConsultaSeguimientoSerializer(serializers.Serializer):
 
         metricas = _calc_metricas_from_respuestas(respuestas)
 
+        # Manejar plantilla_usada
+        plantilla_usada_id = validated.get("plantilla_usada")
+        plantilla_obj = None
+        if plantilla_usada_id:
+            try:
+                from .models import PlantillaConsulta
+                plantilla_obj = PlantillaConsulta.objects.get(id=plantilla_usada_id)
+            except PlantillaConsulta.DoesNotExist:
+                pass
+
         consulta = Consulta.objects.create(
             paciente=paciente,
             nutricionista=nutri,
@@ -677,6 +700,7 @@ class ConsultaSeguimientoSerializer(serializers.Serializer):
             notas=validated.get("notas") or "",
             respuestas=respuestas,
             metricas=metricas,
+            plantilla_usada=plantilla_obj,
             plantilla_snapshot=validated.get("plantilla_snapshot"),
         )
 
@@ -700,3 +724,215 @@ class ConsultaDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Consulta
         fields = "__all__"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Sistema de Plantillas
+# ──────────────────────────────────────────────────────────────────────
+
+from .models import PlantillaConsulta, PlantillaPregunta
+
+
+class PlantillaPreguntaSerializer(serializers.ModelSerializer):
+    """
+    Serializer para PlantillaPregunta (relación M2M enriquecida).
+    Incluye información completa de la pregunta relacionada.
+    """
+    pregunta = PreguntaSerializer(read_only=True)
+    pregunta_id = serializers.PrimaryKeyRelatedField(
+        queryset=Pregunta.objects.filter(activo=True),
+        source='pregunta',
+        write_only=True
+    )
+    
+    class Meta:
+        model = PlantillaPregunta
+        fields = (
+            'id', 'pregunta', 'pregunta_id', 'orden', 
+            'requerido_en_plantilla', 'visible', 'config', 'created_at'
+        )
+        read_only_fields = ('id', 'created_at')
+    
+    def validate_pregunta_id(self, pregunta):
+        """Validar que la pregunta sea compatible con el nutricionista"""
+        plantilla = self.context.get('plantilla')
+        if not plantilla:
+            return pregunta
+        
+        # Si la pregunta es personalizada, debe ser del mismo owner
+        if pregunta.owner_id and plantilla.owner_id and pregunta.owner_id != plantilla.owner_id:
+            raise serializers.ValidationError(
+                f"No puedes usar la pregunta '{pregunta.texto}' (de otro nutricionista) en tu plantilla."
+            )
+        
+        return pregunta
+
+
+class PlantillaConsultaSerializer(serializers.ModelSerializer):
+    """
+    Serializer completo para PlantillaConsulta.
+    Incluye las preguntas configuradas en la plantilla.
+    """
+    preguntas_config = PlantillaPreguntaSerializer(many=True, read_only=True)
+    owner_info = serializers.SerializerMethodField()
+    cantidad_preguntas = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PlantillaConsulta
+        fields = (
+            'id', 'owner', 'owner_info', 'nombre', 'descripcion', 
+            'tipo_consulta', 'es_predeterminada', 'activo', 'config',
+            'preguntas_config', 'cantidad_preguntas',
+            'created_at', 'updated_at'
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+    
+    def get_owner_info(self, obj):
+        """Información del owner (nutricionista o sistema)"""
+        if obj.owner_id is None:
+            return {"tipo": "sistema", "nombre": "Sistema"}
+        return {
+            "tipo": "nutricionista",
+            "id": obj.owner.id,
+            "nombre": f"{obj.owner.nombre} {obj.owner.apellido}"
+        }
+    
+    def get_cantidad_preguntas(self, obj):
+        """Cantidad de preguntas en la plantilla"""
+        return obj.preguntas_config.filter(visible=True).count()
+    
+    def validate(self, data):
+        """Validar que solo haya una plantilla predeterminada por tipo y owner"""
+        es_predeterminada = data.get('es_predeterminada', False)
+        activo = data.get('activo', True)
+        
+        if es_predeterminada and activo:
+            owner = data.get('owner')
+            tipo_consulta = data.get('tipo_consulta')
+            
+            # Verificar si ya existe otra predeterminada
+            conflicto = PlantillaConsulta.objects.filter(
+                owner=owner,
+                tipo_consulta=tipo_consulta,
+                es_predeterminada=True,
+                activo=True
+            )
+            
+            # Si estamos editando, excluir la instancia actual
+            if self.instance:
+                conflicto = conflicto.exclude(pk=self.instance.pk)
+            
+            if conflicto.exists():
+                raise serializers.ValidationError({
+                    'es_predeterminada': 
+                    f"Ya existe una plantilla predeterminada para consultas de tipo "
+                    f"'{dict(TipoConsulta.choices)[tipo_consulta]}'. "
+                    f"Desactiva la otra primero."
+                })
+        
+        return data
+
+
+class PlantillaConsultaListSerializer(serializers.ModelSerializer):
+    """
+    Serializer ligero para listar plantillas (sin incluir preguntas).
+    """
+    owner_info = serializers.SerializerMethodField()
+    cantidad_preguntas = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PlantillaConsulta
+        fields = (
+            'id', 'owner', 'owner_info', 'nombre', 'descripcion',
+            'tipo_consulta', 'es_predeterminada', 'activo',
+            'cantidad_preguntas', 'created_at'
+        )
+        read_only_fields = fields
+    
+    def get_owner_info(self, obj):
+        if obj.owner_id is None:
+            return {"tipo": "sistema", "nombre": "Sistema"}
+        return {
+            "tipo": "nutricionista",
+            "id": obj.owner.id,
+            "nombre": f"{obj.owner.nombre} {obj.owner.apellido}"
+        }
+    
+    def get_cantidad_preguntas(self, obj):
+        return obj.preguntas_config.filter(visible=True).count()
+
+
+class PlantillaConsultaCreateUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer para crear/actualizar plantillas con sus preguntas.
+    """
+    preguntas = serializers.ListField(
+        child=serializers.DictField(),
+        write_only=True,
+        required=False,
+        help_text="Lista de {pregunta_id, orden, requerido_en_plantilla, visible, config}"
+    )
+    
+    class Meta:
+        model = PlantillaConsulta
+        fields = (
+            'id', 'nombre', 'descripcion', 'tipo_consulta',
+            'es_predeterminada', 'activo', 'config', 'preguntas'
+        )
+        read_only_fields = ('id',)
+    
+    def create(self, validated_data):
+        """Crear plantilla y sus preguntas"""
+        preguntas_data = validated_data.pop('preguntas', [])
+        
+        # El owner se asigna desde el contexto (view)
+        owner = self.context.get('owner')
+        plantilla = PlantillaConsulta.objects.create(owner=owner, **validated_data)
+        
+        # Crear relaciones con preguntas
+        for pregunta_data in preguntas_data:
+            pregunta_id = pregunta_data.get('pregunta_id')
+            if not pregunta_id:
+                continue
+            
+            PlantillaPregunta.objects.create(
+                plantilla=plantilla,
+                pregunta_id=pregunta_id,
+                orden=pregunta_data.get('orden', 0),
+                requerido_en_plantilla=pregunta_data.get('requerido_en_plantilla', False),
+                visible=pregunta_data.get('visible', True),
+                config=pregunta_data.get('config', {})
+            )
+        
+        return plantilla
+    
+    def update(self, instance, validated_data):
+        """Actualizar plantilla y sus preguntas"""
+        preguntas_data = validated_data.pop('preguntas', None)
+        
+        # Actualizar campos de la plantilla
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Si se proporcionan preguntas, reemplazar todas
+        if preguntas_data is not None:
+            # Eliminar preguntas existentes
+            instance.preguntas_config.all().delete()
+            
+            # Crear nuevas relaciones
+            for pregunta_data in preguntas_data:
+                pregunta_id = pregunta_data.get('pregunta_id')
+                if not pregunta_id:
+                    continue
+                
+                PlantillaPregunta.objects.create(
+                    plantilla=instance,
+                    pregunta_id=pregunta_id,
+                    orden=pregunta_data.get('orden', 0),
+                    requerido_en_plantilla=pregunta_data.get('requerido_en_plantilla', False),
+                    visible=pregunta_data.get('visible', True),
+                    config=pregunta_data.get('config', {})
+                )
+        
+        return instance
