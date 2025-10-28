@@ -842,13 +842,14 @@ class PlantillaConsultaListSerializer(serializers.ModelSerializer):
     """
     owner_info = serializers.SerializerMethodField()
     cantidad_preguntas = serializers.SerializerMethodField()
+    preguntas_config = PlantillaPreguntaSerializer(many=True, read_only=True)
     
     class Meta:
         model = PlantillaConsulta
         fields = (
             'id', 'owner', 'owner_info', 'nombre', 'descripcion',
             'tipo_consulta', 'es_predeterminada', 'activo',
-            'cantidad_preguntas', 'created_at'
+            'cantidad_preguntas', 'preguntas_config', 'created_at'
         )
         read_only_fields = fields
     
