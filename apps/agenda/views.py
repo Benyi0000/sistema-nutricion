@@ -2,9 +2,14 @@ from django.shortcuts import render
 
 # Create your views here.
 # apps/agenda/views.py
+from datetime import timedelta
 from rest_framework import viewsets, permissions, serializers
 from rest_framework.response import Response
 from rest_framework import status
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework.decorators import action
+from psycopg.types.range import Range
 from .models import (
     Ubicacion, 
     TipoConsultaConfig, 
@@ -254,9 +259,27 @@ class SlotsAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+        # Procesar tipo_consulta_id si se proporciona (para obtener buffers específicos)
+        tipo_consulta_id_str = request.query_params.get('tipo_consulta_id')
+        tipo_consulta_id = None
+        if tipo_consulta_id_str:
+            try:
+                tipo_consulta_id = int(tipo_consulta_id_str)
+            except ValueError:
+                return Response(
+                    {"error": "El ID de tipo de consulta debe ser un número entero."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        # Calcular slots disponibles usando la función del utils.py
-        slots = calculate_available_slots(nutricionista, fecha_inicio, fecha_fin, duracion_minutos, ubicacion_id)
+        # Calcular slots disponibles usando la función del utils.py (incluyendo buffers)
+        slots = calculate_available_slots(
+            nutricionista, 
+            fecha_inicio, 
+            fecha_fin, 
+            duracion_minutos, 
+            ubicacion_id,
+            tipo_consulta_id
+        )
 
         # Serializar los resultados
         serializer = TimeSlotSerializer(slots, many=True)
@@ -313,6 +336,71 @@ class TurnoViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated()]
         return super().get_permissions()
 
+    @action(detail=False, methods=['get'], url_path='mis-turnos', permission_classes=[permissions.IsAuthenticated])
+    def mis_turnos(self, request):
+        """
+        Endpoint para que el nutricionista obtenga sus turnos con filtros de fecha.
+        GET /api/agenda/turnos/mis-turnos/?fecha_inicio=...&fecha_fin=...
+        """
+        user = request.user
+        
+        # Verificar que sea nutricionista
+        if not hasattr(user, 'nutricionista'):
+            return Response(
+                {"error": "Solo los nutricionistas pueden acceder a este endpoint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Obtener parámetros de fecha
+        fecha_inicio_str = request.query_params.get('fecha_inicio')
+        fecha_fin_str = request.query_params.get('fecha_fin')
+        
+        # Base queryset
+        queryset = Turno.objects.filter(
+            nutricionista=user.nutricionista
+        ).select_related('paciente', 'paciente__user', 'tipo_consulta', 'ubicacion')
+        
+        # Filtrar por fechas si se proporcionan
+        if fecha_inicio_str:
+            try:
+                fecha_inicio = timezone.datetime.fromisoformat(fecha_inicio_str.replace('Z', '+00:00'))
+                if timezone.is_naive(fecha_inicio):
+                    fecha_inicio = timezone.make_aware(fecha_inicio)
+                queryset = queryset.filter(start_time__gte=fecha_inicio)
+            except (ValueError, TypeError):
+                pass
+        
+        if fecha_fin_str:
+            try:
+                fecha_fin = timezone.datetime.fromisoformat(fecha_fin_str.replace('Z', '+00:00'))
+                if timezone.is_naive(fecha_fin):
+                    fecha_fin = timezone.make_aware(fecha_fin)
+                queryset = queryset.filter(start_time__lte=fecha_fin)
+            except (ValueError, TypeError):
+                pass
+        
+        # Ordenar por fecha
+        queryset = queryset.order_by('start_time')
+        
+        # Serializar con información extendida
+        turnos_data = []
+        for turno in queryset:
+            data = TurnoSerializer(turno).data
+            # Agregar información adicional del paciente
+            if turno.paciente:
+                data['paciente_nombre'] = turno.paciente.nombre
+                data['paciente_apellido'] = turno.paciente.apellido
+            
+            # Agregar nombre de ubicación y tipo de consulta
+            if turno.ubicacion:
+                data['ubicacion_nombre'] = turno.ubicacion.nombre
+            if turno.tipo_consulta:
+                data['tipo_consulta_display'] = turno.tipo_consulta.get_tipo_display()
+            
+            turnos_data.append(data)
+        
+        return Response(turnos_data)
+
 
     def perform_create(self, serializer):
         """
@@ -347,16 +435,83 @@ class TurnoViewSet(viewsets.ModelViewSet):
         if tipo_consulta.nutricionista != nutricionista:
              raise serializers.ValidationError("El tipo de consulta no pertenece al nutricionista seleccionado.")
 
+        # **Validar política de anticipación mínima**
+        try:
+            settings = nutricionista.settings
+            anticipacion_minima = settings.anticipacion_minima  # Es un timedelta
+            ahora = timezone.now()
+            tiempo_hasta_turno = slot.lower - ahora  # slot.lower es el inicio del turno
+            
+            if tiempo_hasta_turno < anticipacion_minima:
+                horas_minimas = anticipacion_minima.total_seconds() / 3600
+                horas_hasta_turno = tiempo_hasta_turno.total_seconds() / 3600
+                raise serializers.ValidationError(
+                    f"Se requiere reservar con al menos {horas_minimas:.0f} horas de anticipación. "
+                    f"El turno seleccionado es en {horas_hasta_turno:.1f} horas."
+                )
+        except ProfessionalSettings.DoesNotExist:
+            # Si no hay configuración, usar valor por defecto de 2 horas
+            anticipacion_minima = timedelta(hours=2)
+            ahora = timezone.now()
+            tiempo_hasta_turno = slot.lower - ahora
+            
+            if tiempo_hasta_turno < anticipacion_minima:
+                raise serializers.ValidationError(
+                    "Se requiere reservar con al menos 2 horas de anticipación."
+                )
 
-        # **Validación CRÍTICA de solapamiento y disponibilidad**
-        # 1. Verificar contra otros turnos TENTATIVOS o CONFIRMADOS
-        overlapping_turnos = Turno.objects.filter(
+        # **Validar política de anticipación máxima**
+        try:
+            settings = nutricionista.settings
+            anticipacion_maxima = settings.anticipacion_maxima  # Es un timedelta
+            
+            if tiempo_hasta_turno > anticipacion_maxima:
+                dias_maximos = anticipacion_maxima.days
+                raise serializers.ValidationError(
+                    f"No se puede reservar con más de {dias_maximos} días de anticipación."
+                )
+        except ProfessionalSettings.DoesNotExist:
+            pass  # Si no hay configuración, no validar máximo
+
+
+        # **Obtener buffers del tipo de consulta seleccionado**
+        buffer_before_min = tipo_consulta.buffer_before_min
+        buffer_after_min = tipo_consulta.buffer_after_min
+        
+        # Crear rango extendido con buffers para verificar solapamiento
+        slot_con_buffers = Range(
+            slot.lower - timedelta(minutes=buffer_before_min),
+            slot.upper + timedelta(minutes=buffer_after_min),
+            bounds='[)'
+        )
+
+
+        # **Validación CRÍTICA de solapamiento con buffers**
+        # 1. Verificar contra otros turnos TENTATIVOS o CONFIRMADOS (incluyendo sus buffers)
+        turnos_existentes = Turno.objects.filter(
             nutricionista=nutricionista,
             state__in=[TurnoState.TENTATIVO, TurnoState.CONFIRMADO],
-            slot__overlap=slot # Usar overlap para chequear intersección
-        ).exists()
-        if overlapping_turnos:
-             raise serializers.ValidationError("El horario seleccionado ya no está disponible (ocupado por otro turno).")
+            slot__overlap=slot_con_buffers  # Verificar contra el rango con buffers
+        )
+        
+        # Para cada turno existente, verificar considerando también SUS buffers
+        for turno_existente in turnos_existentes:
+            turno_buffer_before = turno_existente.tipo_consulta.buffer_before_min if turno_existente.tipo_consulta else 0
+            turno_buffer_after = turno_existente.tipo_consulta.buffer_after_min if turno_existente.tipo_consulta else 0
+            
+            turno_existente_con_buffers = Range(
+                turno_existente.slot.lower - timedelta(minutes=turno_buffer_before),
+                turno_existente.slot.upper + timedelta(minutes=turno_buffer_after),
+                bounds='[)'
+            )
+            
+            # Verificar si hay solapamiento entre los dos rangos con buffers
+            if (slot_con_buffers.lower < turno_existente_con_buffers.upper and 
+                slot_con_buffers.upper > turno_existente_con_buffers.lower):
+                raise serializers.ValidationError(
+                    "El horario seleccionado no está disponible (incluyendo tiempos de preparación). "
+                    "Por favor, seleccione otro horario."
+                )
 
         # 2. Verificar contra bloqueos (filtrar por ubicacion si aplica)
         bloqueos_query = BloqueoDisponibilidad.objects.filter(
@@ -405,16 +560,43 @@ class TurnoViewSet(viewsets.ModelViewSet):
                 {"error": "Solo se pueden aprobar turnos en estado TENTATIVO."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-         # Validar solapamiento OTRA VEZ por si algo cambió mientras estaba tentativo
-        overlapping_turnos = Turno.objects.filter(
+        
+        # Obtener buffers del turno a aprobar
+        buffer_before_min = turno.tipo_consulta.buffer_before_min if turno.tipo_consulta else 0
+        buffer_after_min = turno.tipo_consulta.buffer_after_min if turno.tipo_consulta else 0
+        
+        turno_con_buffers = Range(
+            turno.slot.lower - timedelta(minutes=buffer_before_min),
+            turno.slot.upper + timedelta(minutes=buffer_after_min),
+            bounds='[)'
+        )
+        
+        # Validar solapamiento OTRA VEZ por si algo cambió mientras estaba tentativo
+        # Verificar contra turnos CONFIRMADOS (incluyendo sus buffers)
+        turnos_confirmados = Turno.objects.filter(
             nutricionista=turno.nutricionista,
-            state=TurnoState.CONFIRMADO, # Solo contra confirmados ahora? O tentativos también?
-            slot__overlap=turno.slot
-        ).exclude(pk=turno.pk).exists() # Excluir el turno actual
-        if overlapping_turnos:
-             # Quizás cambiar el estado a 'CONFLICTO' en lugar de error?
-             return Response({"error": "Conflicto de horario detectado. No se puede aprobar."}, status=status.HTTP_409_CONFLICT)
-
+            state=TurnoState.CONFIRMADO,
+            slot__overlap=turno_con_buffers  # Verificar contra el rango con buffers
+        ).exclude(pk=turno.pk)  # Excluir el turno actual
+        
+        # Para cada turno confirmado, verificar considerando también SUS buffers
+        for turno_existente in turnos_confirmados:
+            turno_buffer_before = turno_existente.tipo_consulta.buffer_before_min if turno_existente.tipo_consulta else 0
+            turno_buffer_after = turno_existente.tipo_consulta.buffer_after_min if turno_existente.tipo_consulta else 0
+            
+            turno_existente_con_buffers = Range(
+                turno_existente.slot.lower - timedelta(minutes=turno_buffer_before),
+                turno_existente.slot.upper + timedelta(minutes=turno_buffer_after),
+                bounds='[)'
+            )
+            
+            # Verificar si hay solapamiento entre los dos rangos con buffers
+            if (turno_con_buffers.lower < turno_existente_con_buffers.upper and 
+                turno_con_buffers.upper > turno_existente_con_buffers.lower):
+                return Response(
+                    {"error": "Conflicto de horario detectado (incluyendo tiempos de preparación). No se puede aprobar."},
+                    status=status.HTTP_409_CONFLICT
+                )
 
         turno.state = TurnoState.CONFIRMADO
         # Podrías añadir notas del nutricionista aquí si se envían en el request
@@ -431,9 +613,13 @@ class TurnoViewSet(viewsets.ModelViewSet):
 
         # Validar quién puede cancelar qué estado
         can_cancel = False
-        if user == turno.paciente and turno.state in [TurnoState.TENTATIVO, TurnoState.CONFIRMADO]:
+        is_paciente = False
+        
+        # CORREGIDO: Comparar correctamente paciente.user_account con user
+        if hasattr(user, 'paciente') and user.paciente == turno.paciente and turno.state in [TurnoState.TENTATIVO, TurnoState.CONFIRMADO]:
              can_cancel = True # Paciente puede cancelar sus turnos (quizás con límite de tiempo antes de la cita?)
-        elif user == turno.nutricionista and turno.state in [TurnoState.TENTATIVO, TurnoState.CONFIRMADO]:
+             is_paciente = True
+        elif hasattr(user, 'nutricionista') and user.nutricionista == turno.nutricionista and turno.state in [TurnoState.TENTATIVO, TurnoState.CONFIRMADO]:
              can_cancel = True # Nutri puede cancelar
         elif user.is_staff: # Admin puede cancelar
              can_cancel = True
@@ -443,6 +629,30 @@ class TurnoViewSet(viewsets.ModelViewSet):
                 {"error": "No tienes permiso para cancelar este turno o ya está cancelado/completado."},
                 status=status.HTTP_403_FORBIDDEN
              )
+
+        # Validar política de reprogramación para pacientes
+        if is_paciente:
+            try:
+                settings = turno.nutricionista.settings
+                horas_minimas = settings.min_reschedule_hours
+                
+                # Calcular horas hasta el turno
+                ahora = timezone.now()
+                tiempo_hasta_turno = turno.start_time - ahora
+                horas_hasta_turno = tiempo_hasta_turno.total_seconds() / 3600
+                
+                if horas_hasta_turno < horas_minimas:
+                    return Response(
+                        {
+                            "error": f"No se puede cancelar con menos de {horas_minimas} horas de anticipación.",
+                            "horas_requeridas": horas_minimas,
+                            "horas_restantes": round(horas_hasta_turno, 1)
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Exception as e:
+                # Si no hay configuración, permitir cancelar (configuración por defecto)
+                pass
 
         # Validar si ya pasó?
         if turno.slot.lower <= timezone.now() and turno.state == TurnoState.CONFIRMADO:

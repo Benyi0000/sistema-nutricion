@@ -1,4 +1,4 @@
-// src/containers/pages/nutricionista/Dashboard.jsx
+// src/containers/pages/nutricionista/DashboardNutri.jsx
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { format, startOfDay, endOfDay, subDays, addDays } from 'date-fns';
@@ -8,9 +8,13 @@ import {
   useGetProfessionalSettingsQuery,
   useGetUbicacionesQuery,
   useGetTiposConsultaQuery,
+  useGetAvailableSlotsQuery
 } from '../../../features/agenda/agendaApiSlice';
+import { useSelector } from 'react-redux';
 
-export default function DashboardNutri() {
+const DashboardNutri = () => {
+  const { user } = useSelector(state => state.auth);
+  
   // Fecha de hoy en timezone de Argentina
   const hoy = useMemo(() => new Date(), []);
   const fechaFormateada = useMemo(() => {
@@ -315,4 +319,6 @@ export default function DashboardNutri() {
       </div>
     </div>
   );
-}
+};
+
+export default DashboardNutri;

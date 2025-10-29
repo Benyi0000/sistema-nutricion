@@ -9,6 +9,8 @@ const MisTurnosPage = () => {
   const [cancelarTurno, { isLoading: isCanceling }] = useCancelarTurnoMutation();
   const [turnoACancelar, setTurnoACancelar] = useState(null);
   const [filtroEstado, setFiltroEstado] = useState('TODOS');
+  const [modalExito, setModalExito] = useState(false);
+  const [modalError, setModalError] = useState({ show: false, mensaje: '', detalle: '' });
 
   // Función para obtener el color del badge según el estado
   const getEstadoColor = (estado) => {
@@ -63,12 +65,41 @@ const MisTurnosPage = () => {
     if (!turnoACancelar) return;
     
     try {
-      await cancelarTurno(turnoACancelar.id).unwrap();
-      alert('Turno cancelado exitosamente');
+      await cancelarTurno({ id: turnoACancelar.id }).unwrap();
       setTurnoACancelar(null);
+      setModalExito(true);
+      setTimeout(() => setModalExito(false), 3000);
     } catch (error) {
       console.error('Error al cancelar turno:', error);
-      alert('Error al cancelar el turno. Por favor, intente nuevamente.');
+      
+      // Manejar error de política de cancelación
+      if (error?.data?.error) {
+        const errorMsg = error.data.error;
+        const horasRequeridas = error.data.horas_requeridas;
+        const horasRestantes = error.data.horas_restantes;
+        
+        if (horasRequeridas && horasRestantes !== undefined) {
+          setModalError({
+            show: true,
+            mensaje: 'No se puede cancelar el turno',
+            detalle: `Se requieren ${horasRequeridas} horas de anticipación para cancelar. Solo faltan ${horasRestantes.toFixed(1)} horas para tu turno.\n\nPor favor, contacta a tu nutricionista si necesitas cancelar con urgencia.`
+          });
+        } else {
+          setModalError({
+            show: true,
+            mensaje: 'Error al cancelar',
+            detalle: errorMsg
+          });
+        }
+      } else {
+        setModalError({
+          show: true,
+          mensaje: 'Error al cancelar el turno',
+          detalle: 'Ocurrió un error inesperado. Por favor, intenta nuevamente o contacta al soporte.'
+        });
+      }
+      
+      setTurnoACancelar(null);
     }
   };
 
@@ -257,8 +288,8 @@ const MisTurnosPage = () => {
 
       {/* Modal de Confirmación de Cancelación */}
       {turnoACancelar && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-[2px]">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-2xl">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               ¿Confirmar cancelación?
             </h3>
@@ -287,6 +318,56 @@ const MisTurnosPage = () => {
                 {isCanceling ? 'Cancelando...' : 'Sí, cancelar turno'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Éxito */}
+      {modalExito && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-[2px]">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 animate-fade-in shadow-2xl">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 rounded-full mb-4">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-center text-gray-900 mb-2">
+              ¡Turno cancelado!
+            </h3>
+            <p className="text-center text-gray-600 mb-4">
+              Tu turno ha sido cancelado exitosamente.
+            </p>
+            <button
+              onClick={() => setModalExito(false)}
+              className="w-full px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Error */}
+      {modalError.show && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-[2px]">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 animate-fade-in shadow-2xl">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-center text-gray-900 mb-2">
+              {modalError.mensaje}
+            </h3>
+            <p className="text-center text-gray-600 mb-4 whitespace-pre-line">
+              {modalError.detalle}
+            </p>
+            <button
+              onClick={() => setModalError({ show: false, mensaje: '', detalle: '' })}
+              className="w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+            >
+              Cerrar
+            </button>
           </div>
         </div>
       )}

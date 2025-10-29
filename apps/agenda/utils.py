@@ -4,9 +4,10 @@ from django.utils import timezone
 from psycopg.types.range import Range
 from .models import DisponibilidadHoraria, BloqueoDisponibilidad, Turno, TipoConsultaConfig, ProfessionalSettings, TurnoState
 
-def calculate_available_slots(nutricionista, start_date, end_date, duracion_minutos=None, ubicacion_id=None):
+def calculate_available_slots(nutricionista, start_date, end_date, duracion_minutos=None, ubicacion_id=None, tipo_consulta_id=None):
     """
     Calcula los slots de tiempo disponibles para un nutricionista en un rango de fechas.
+    Incluye buffers antes y después de cada consulta.
 
     Args:
         nutricionista: Instancia del perfil Nutricionista.
@@ -14,31 +15,57 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
         end_date: Fecha de fin (date object, inclusiva).
         duracion_minutos: Duración del slot deseado en minutos. Si es None, usa la predeterminada.
         ubicacion_id: ID de la ubicación para filtrar disponibilidades. Si es None, no filtra por ubicación.
+        tipo_consulta_id: ID del TipoConsultaConfig para obtener buffers específicos.
 
     Returns:
         Lista de diccionarios [{'inicio': datetime, 'fin': datetime}] representando los slots.
+        Los slots retornados son solo el tiempo de consulta (sin buffers visibles al paciente).
     """
     available_slots = []
     current_tz = timezone.get_current_timezone()
 
-    # 1. Obtener configuración del profesional
+    # 1. Obtener configuración del profesional y buffers
+    buffer_before_min = 0
+    buffer_after_min = 0
+    
     try:
         settings = ProfessionalSettings.objects.get(nutricionista=nutricionista)
-        # Por ahora, usamos una duración fija si no se especifica.
-        # Idealmente, esto debería venir de TipoConsultaConfig o ser un parámetro.
+        # Buffers globales por defecto
+        buffer_before_min = settings.buffer_before_min
+        buffer_after_min = settings.buffer_after_min
+        
+        # Si se especifica tipo_consulta_id, usar sus buffers específicos
+        if tipo_consulta_id:
+            try:
+                tipo_consulta_config = TipoConsultaConfig.objects.get(
+                    id=tipo_consulta_id,
+                    nutricionista=nutricionista
+                )
+                duracion_minutos = tipo_consulta_config.duracion_min
+                buffer_before_min = tipo_consulta_config.buffer_before_min
+                buffer_after_min = tipo_consulta_config.buffer_after_min
+            except TipoConsultaConfig.DoesNotExist:
+                pass
+        
+        # Si no se especificó duración, buscar una por defecto
         if duracion_minutos is None:
-             # Buscamos una configuración de consulta predeterminada o la primera
             default_tipo_consulta = TipoConsultaConfig.objects.filter(
                 nutricionista=nutricionista
             ).order_by('id').first()
             if default_tipo_consulta:
                 duracion_minutos = default_tipo_consulta.duracion_min
+                if not tipo_consulta_id:  # Solo usar buffers si no se especificó tipo_consulta_id
+                    buffer_before_min = default_tipo_consulta.buffer_before_min
+                    buffer_after_min = default_tipo_consulta.buffer_after_min
             else:
-                duracion_minutos = 60 # Default fallback si no hay TipoConsultaConfig
+                duracion_minutos = 60 # Default fallback
     except ProfessionalSettings.DoesNotExist:
         duracion_minutos = duracion_minutos or 60 # Default si no hay settings
 
     slot_duration = datetime.timedelta(minutes=duracion_minutos)
+    buffer_before = datetime.timedelta(minutes=buffer_before_min)
+    buffer_after = datetime.timedelta(minutes=buffer_after_min)
+    total_duration = buffer_before + slot_duration + buffer_after  # Duración total incluyendo buffers
 
     # 2. Iterar por cada día en el rango solicitado
     current_date = start_date
@@ -71,14 +98,27 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
             )
 
             # Generar slots potenciales dentro de esta disponibilidad
-            current_slot_start = start_dt
-            while current_slot_start + slot_duration <= end_dt:
-                daily_potential_slots.append(Range(
-                    current_slot_start,
-                    current_slot_start + slot_duration,
-                    bounds='[)'
-                ))
-                current_slot_start += slot_duration # Avanzar al siguiente slot potencial
+            # IMPORTANTE: Consideramos el tiempo total (buffer_before + consulta + buffer_after)
+            # pero el slot que guardamos es solo el tiempo de consulta
+            current_slot_start = start_dt + buffer_before  # Empezar después del primer buffer
+            
+            while current_slot_start + slot_duration + buffer_after <= end_dt:
+                # El slot visible al paciente es solo el tiempo de consulta (sin buffers)
+                daily_potential_slots.append({
+                    'slot': Range(
+                        current_slot_start,
+                        current_slot_start + slot_duration,
+                        bounds='[)'
+                    ),
+                    # Guardamos también el rango completo con buffers para verificar solapamientos
+                    'total_range': Range(
+                        current_slot_start - buffer_before,
+                        current_slot_start + slot_duration + buffer_after,
+                        bounds='[)'
+                    )
+                })
+                # Avanzar por la duración total (incluyendo buffers)
+                current_slot_start += total_duration
 
         # Si no hay slots potenciales para este día, continuar
         if not daily_potential_slots:
@@ -108,22 +148,51 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
         )
 
         # Convertir bloqueos y turnos a rangos para fácil comparación
+        # IMPORTANTE: Para los turnos, debemos considerar también sus buffers
         occupied_ranges = []
         for b in bloqueos:
             # Crear un rango desde start_time hasta end_time
             occupied_ranges.append(Range(b.start_time, b.end_time, bounds='[)'))
+        
         for t in turnos_ocupados:
-            occupied_ranges.append(t.slot)
+            # Para cada turno existente, obtener sus buffers configurados
+            turno_buffer_before = 0
+            turno_buffer_after = 0
+            
+            if t.tipo_consulta:
+                turno_buffer_before = t.tipo_consulta.buffer_before_min
+                turno_buffer_after = t.tipo_consulta.buffer_after_min
+            else:
+                # Usar buffers globales del profesional si no hay tipo específico
+                try:
+                    settings = ProfessionalSettings.objects.get(nutricionista=nutricionista)
+                    turno_buffer_before = settings.buffer_before_min
+                    turno_buffer_after = settings.buffer_after_min
+                except ProfessionalSettings.DoesNotExist:
+                    pass
+            
+            # Expandir el slot del turno para incluir sus buffers
+            turno_total_range = Range(
+                t.slot.lower - datetime.timedelta(minutes=turno_buffer_before),
+                t.slot.upper + datetime.timedelta(minutes=turno_buffer_after),
+                bounds='[)'
+            )
+            occupied_ranges.append(turno_total_range)
 
         # 4. Filtrar slots potenciales eliminando los ocupados
-        for potential_slot in daily_potential_slots:
+        # Verificamos contra el rango TOTAL (con buffers) de cada slot potencial
+        for potential_slot_data in daily_potential_slots:
             is_occupied = False
+            potential_total_range = potential_slot_data['total_range']
+            
             for occupied in occupied_ranges:
-                # Usamos 'overlap' para verificar si hay alguna intersección
-                if potential_slot.lower < occupied.upper and potential_slot.upper > occupied.lower:
+                # Verificar si el rango total del slot potencial se solapa con algún rango ocupado
+                if potential_total_range.lower < occupied.upper and potential_total_range.upper > occupied.lower:
                    is_occupied = True
                    break
             if not is_occupied:
+                # Retornar solo el slot de consulta (sin buffers visibles)
+                potential_slot = potential_slot_data['slot']
                 available_slots.append({
                     'inicio': potential_slot.lower,
                     'fin': potential_slot.upper

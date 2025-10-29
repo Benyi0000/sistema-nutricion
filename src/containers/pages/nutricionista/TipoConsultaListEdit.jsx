@@ -88,7 +88,7 @@ const TipoConsultaForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
 
       <div>
         <label htmlFor="bufferBefore" className="block text-sm font-medium text-gray-700">
-          Buffer antes (minutos)
+          ⏰ Buffer antes (minutos)
         </label>
         <input
           type="number"
@@ -98,15 +98,19 @@ const TipoConsultaForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           min="0"
           disabled={isLoading}
+          placeholder="0"
         />
         <p className="text-xs text-gray-500 mt-1">
-          Tiempo de preparación antes de la consulta
+          🔹 Tiempo de preparación antes de la consulta (revisar historial, preparar consultorio)
+        </p>
+        <p className="text-xs text-indigo-600 font-medium mt-1">
+          Este tiempo se bloquea automáticamente en el calendario
         </p>
       </div>
 
       <div>
         <label htmlFor="bufferAfter" className="block text-sm font-medium text-gray-700">
-          Buffer después (minutos)
+          📝 Buffer después (minutos)
         </label>
         <input
           type="number"
@@ -116,8 +120,17 @@ const TipoConsultaForm = ({ initialData, onSubmit, isLoading, onCancel }) => {
           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           min="0"
           disabled={isLoading}
+          placeholder="0"
         />
         <p className="text-xs text-gray-500 mt-1">
+          🔹 Tiempo después de la consulta (completar notas, limpiar/ventilar consultorio)
+        </p>
+        <p className="text-xs text-indigo-600 font-medium mt-1">
+          Este tiempo se bloquea automáticamente en el calendario
+        </p>
+      </div>
+
+      <div>        <p className="text-xs text-gray-500 mt-1">
           Tiempo de cierre después de la consulta
         </p>
       </div>

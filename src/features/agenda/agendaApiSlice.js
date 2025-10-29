@@ -88,13 +88,16 @@ export const agendaApiSlice = createApi({
     // --- Slots Disponibles ---
     getAvailableSlots: builder.query({
       // Los parámetros se pasan al usar el hook, ej: useGetAvailableSlotsQuery({ nutricionistaId: 1, ... })
-      query: ({ nutricionistaId, fechaInicio, fechaFin, duracion, ubicacionId }) => {
+      query: ({ nutricionistaId, fechaInicio, fechaFin, duracion, ubicacionId, tipoConsultaId }) => {
         let url = `nutricionista/${nutricionistaId}/slots/?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`;
         if (duracion) {
             url += `&duracion=${duracion}`;
         }
         if (ubicacionId) {
             url += `&ubicacion_id=${ubicacionId}`;
+        }
+        if (tipoConsultaId) {
+            url += `&tipo_consulta_id=${tipoConsultaId}`;
         }
         return url;
       },
@@ -115,6 +118,21 @@ export const agendaApiSlice = createApi({
     getTurnoById: builder.query({
         query: (id) => `turnos/${id}/`,
         providesTags: (_result, _error, id) => [{ type: 'Turno', id }],
+    }),
+
+    // Obtener turnos del nutricionista actual (con rango de fechas)
+    getTurnosNutricionista: builder.query({
+      query: ({ fecha_inicio, fecha_fin }) => {
+        let url = 'turnos/mis-turnos/';
+        const params = new URLSearchParams();
+        if (fecha_inicio) params.append('fecha_inicio', fecha_inicio);
+        if (fecha_fin) params.append('fecha_fin', fecha_fin);
+        return `${url}?${params.toString()}`;
+      },
+      providesTags: (result = []) => [
+        ...result.map(({ id }) => ({ type: 'Turno', id })),
+        { type: 'Turno', id: 'LIST' },
+      ],
     }),
 
     // === MUTATIONS (Modificar datos) ===
@@ -239,13 +257,13 @@ export const agendaApiSlice = createApi({
       invalidatesTags: (_result, _error, turnoId) => [{ type: 'Turno', id: turnoId }, { type: 'Turno', id: 'LIST' }, 'Slot'],
     }),
     cancelarTurno: builder.mutation({
-        query: (turnoId) => ({
-          url: `turnos/${turnoId}/cancelar/`,
+        query: ({ id, motivo }) => ({
+          url: `turnos/${id}/cancelar/`,
           method: 'POST',
-          // Podrías necesitar enviar una razón en el body si la API lo requiere: body: { razon: '...' }
+          body: motivo ? { motivo } : {},
         }),
         // Invalida el turno específico, la lista y libera el slot
-        invalidatesTags: (_result, _error, turnoId) => [{ type: 'Turno', id: turnoId }, { type: 'Turno', id: 'LIST' }, 'Slot'],
+        invalidatesTags: (_result, _error, { id }) => [{ type: 'Turno', id }, { type: 'Turno', id: 'LIST' }, 'Slot'],
     }),
     // Podrías añadir una mutación genérica para actualizar notas del turno si es necesario
     updateTurnoNotas: builder.mutation({
@@ -289,6 +307,7 @@ export const {
   useGetAvailableSlotsQuery,
   useGetTurnosQuery,
   useGetTurnoByIdQuery,
+  useGetTurnosNutricionistaQuery,
   useSolicitarTurnoMutation,
   useAprobarTurnoMutation,
   useCancelarTurnoMutation,

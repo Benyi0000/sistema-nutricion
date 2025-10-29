@@ -173,6 +173,7 @@ const TurnosViewPage = () => {
       fechaFin: queryDates.fecha_fin,
       duracion: selectedTipoConsulta?.duracion_min, // Agregar duración del tipo de consulta
       ubicacionId: selectedUbicacion?.id,
+      tipoConsultaId: selectedTipoConsulta?.id, // NUEVO: Pasar ID para obtener buffers específicos
     },
     {
       skip: !nutricionistaId || !queryDates.fecha_inicio || !queryDates.fecha_fin || !selectedUbicacion || !selectedTipoConsulta, // Requiere tipo de consulta Y ubicación
@@ -196,6 +197,18 @@ const TurnosViewPage = () => {
     } catch (err) {
       // El error se maneja con 'isError'
       console.error("❌ Error al solicitar turno:", err);
+      
+      // Manejo de errores de políticas de anticipación
+      if (err?.data?.error) {
+        const errorMsg = err.data.error;
+        alert(
+          `⚠️ No se puede reservar este turno\n\n${errorMsg}\n\n` +
+          `Por favor, seleccione otro horario o contacte al nutricionista.`
+        );
+        setSelectedSlot(null);
+        return;
+      }
+      
       if (err.data) {
         // Si es HTML, no imprimir carácter por carácter
         if (typeof err.data === 'string' && err.data.includes('<!DOCTYPE')) {
