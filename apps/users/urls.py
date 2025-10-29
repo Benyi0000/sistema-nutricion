@@ -23,6 +23,26 @@ from .views import (
     NutritionistAppointmentsView,
     NutritionistListView,
     NutritionistDetailView,
+    # Nuevas vistas
+    DocumentAttachmentListCreateView,
+    DocumentAttachmentDetailView,
+    ConsultationListCreateView,
+    ConsultationDetailView,
+    PaymentListCreateView,
+    PaymentDetailView,
+    MercadoPagoWebhookView,
+    PatientReportPDFView,
+    PatientEvolutionExcelView,
+    MonthlyReportPDFView,
+    SendAppointmentReminderView,
+    # Vistas de registro de comidas
+    MealPhotoListCreateView,
+    MealPhotoDetailView,
+    MealPhotoReviewView,
+    PatientMealStatsView,
+    # Vistas de historial de consultas
+    NutritionistConsultationHistoryView,
+    PatientConsultationHistoryView,
 )
 
 app_name = 'users'
@@ -65,4 +85,35 @@ urlpatterns = [
     # Gestión de nutricionistas (Solo para administradores)
     path('nutritionists/', NutritionistListView.as_view(), name='nutritionist_list'),
     path('nutritionists/<int:pk>/', NutritionistDetailView.as_view(), name='nutritionist_detail'),
+    
+    # Documentos adjuntos
+    path('documents/', DocumentAttachmentListCreateView.as_view(), name='document_list_create'),
+    path('documents/<int:pk>/', DocumentAttachmentDetailView.as_view(), name='document_detail'),
+    
+    # Consultas
+    path('consultations/', ConsultationListCreateView.as_view(), name='consultation_list_create'),
+    path('consultations/<int:pk>/', ConsultationDetailView.as_view(), name='consultation_detail'),
+    
+    # Pagos
+    path('payments/', PaymentListCreateView.as_view(), name='payment_list_create'),
+    path('payments/<int:pk>/', PaymentDetailView.as_view(), name='payment_detail'),
+    path('payments/webhook/', MercadoPagoWebhookView.as_view(), name='mercadopago_webhook'),
+    
+    # Reportes
+    path('reports/patient/<int:patient_id>/pdf/', PatientReportPDFView.as_view(), name='patient_report_pdf'),
+    path('reports/patient/<int:patient_id>/excel/', PatientEvolutionExcelView.as_view(), name='patient_evolution_excel'),
+    path('reports/monthly/pdf/', MonthlyReportPDFView.as_view(), name='monthly_report_pdf'),
+    
+    # Notificaciones
+    path('appointments/<int:appointment_id>/send-reminder/', SendAppointmentReminderView.as_view(), name='send_appointment_reminder'),
+    
+    # Registro de Comidas (Meal Photos)
+    path('meal-photos/', MealPhotoListCreateView.as_view(), name='meal_photo_list_create'),
+    path('meal-photos/<int:pk>/', MealPhotoDetailView.as_view(), name='meal_photo_detail'),
+    path('meal-photos/<int:pk>/review/', MealPhotoReviewView.as_view(), name='meal_photo_review'),
+    path('meal-photos/stats/<int:patient_id>/', PatientMealStatsView.as_view(), name='patient_meal_stats'),
+    
+    # Historial de Consultas
+    path('consultations/history/', NutritionistConsultationHistoryView.as_view(), name='nutritionist_consultation_history'),
+    path('consultations/history/patient/<int:patient_id>/', PatientConsultationHistoryView.as_view(), name='patient_consultation_history'),
 ]

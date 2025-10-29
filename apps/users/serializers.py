@@ -1,7 +1,12 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Person, Patient, PatientInvitation, HistoriaClinica, HabitosAlimenticios, IndicadoresDietarios, DatosCalculadora, Appointment
+from .models import (
+    User, Person, Patient, PatientInvitation, HistoriaClinica, 
+    HabitosAlimenticios, IndicadoresDietarios, DatosCalculadora, 
+    Appointment, DocumentAttachment, Payment, PaymentProof,
+    AnthropometricMeasurement, Consultation, MealPhoto
+)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -614,3 +619,252 @@ class AvailableDateSerializer(serializers.Serializer):
     """Serializer para fechas disponibles con horarios"""
     date = serializers.DateField()
     time_slots = AvailableTimeSlotSerializer(many=True)
+
+
+# Serializers para DocumentAttachment
+class DocumentAttachmentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    patient_name = serializers.CharField(source='patient.person.user.get_full_name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = DocumentAttachment
+        fields = [
+            'id', 'patient', 'consultation', 'document_type', 'title', 
+            'description', 'file', 'uploaded_by', 'uploaded_by_name', 
+            'patient_name', 'uploaded_at'
+        ]
+        read_only_fields = ['id', 'uploaded_by', 'uploaded_at']
+    
+    def validate(self, attrs):
+        """Validar que el documento esté asociado a un paciente o consulta"""
+        if not attrs.get('patient') and not attrs.get('consultation'):
+            raise serializers.ValidationError(
+                "El documento debe estar asociado a un paciente o a una consulta."
+            )
+        return attrs
+
+
+class DocumentAttachmentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentAttachment
+        fields = ['patient', 'consultation', 'document_type', 'title', 'description', 'file']
+    
+    def validate(self, attrs):
+        """Validar que el documento esté asociado a un paciente o consulta"""
+        if not attrs.get('patient') and not attrs.get('consultation'):
+            raise serializers.ValidationError(
+                "El documento debe estar asociado a un paciente o a una consulta."
+            )
+        return attrs
+
+
+# Serializers para Payment y PaymentProof
+class PaymentProofSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentProof
+        fields = ['id', 'proof_number', 'issue_date', 'pdf_file', 'tax_id', 'fiscal_address', 'created_at']
+        read_only_fields = ['id', 'proof_number', 'issue_date', 'created_at']
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    patient_name = serializers.CharField(source='patient.person.user.get_full_name', read_only=True)
+    patient_dni = serializers.CharField(source='patient.person.user.dni', read_only=True)
+    nutritionist_name = serializers.CharField(source='nutritionist.get_full_name', read_only=True)
+    proof = PaymentProofSerializer(read_only=True)
+    
+    class Meta:
+        model = Payment
+        fields = [
+            'id', 'patient', 'nutritionist', 'amount', 'payment_method', 'status',
+            'consultation', 'appointment', 'nutrition_plan', 'description', 'notes',
+            'mercadopago_payment_id', 'mercadopago_preference_id', 'mercadopago_status',
+            'mercadopago_status_detail', 'payment_date', 'created_at', 'updated_at',
+            'patient_name', 'patient_dni', 'nutritionist_name', 'proof'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class PaymentCreateSerializer(serializers.ModelSerializer):
+    """Serializer para crear pagos (manual o preparar MercadoPago)"""
+    class Meta:
+        model = Payment
+        fields = [
+            'patient', 'amount', 'payment_method', 'description', 'notes',
+            'consultation', 'appointment', 'nutrition_plan'
+        ]
+    
+    def validate_amount(self, value):
+        """Validar que el monto sea positivo"""
+        if value <= 0:
+            raise serializers.ValidationError("El monto debe ser mayor a 0.")
+        return value
+
+
+class PaymentUpdateSerializer(serializers.ModelSerializer):
+    """Serializer para actualizar el estado de pagos"""
+    class Meta:
+        model = Payment
+        fields = ['status', 'notes', 'payment_date']
+
+
+# Serializers para medidas antropométricas con cálculos
+class AnthropometricMeasurementSerializer(serializers.ModelSerializer):
+    bmi = serializers.FloatField(read_only=True)
+    waist_hip_ratio = serializers.FloatField(read_only=True)
+    tmb = serializers.SerializerMethodField()
+    get_value = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AnthropometricMeasurement
+        fields = [
+            'id', 'consultation', 'weight', 'height', 'body_fat_percentage',
+            'muscle_mass_percentage', 'waist_circumference', 'hip_circumference',
+            'triceps_skinfold', 'subscapular_skinfold', 'suprailiac_skinfold',
+            'bmi', 'waist_hip_ratio', 'tmb', 'get_value', 'created_at'
+        ]
+        read_only_fields = ['id', 'bmi', 'waist_hip_ratio', 'tmb', 'get_value', 'created_at']
+    
+    def get_tmb(self, obj):
+        """Calcular TMB si hay datos disponibles"""
+        patient = obj.consultation.patient
+        person = patient.person
+        
+        if not person.birth_date or not person.gender:
+            return None
+        
+        from datetime import date
+        age = (date.today() - person.birth_date).days // 365
+        
+        return obj.calculate_tmb(age, person.gender)
+    
+    def get_get_value(self, obj):
+        """Calcular GET si hay datos disponibles"""
+        patient = obj.consultation.patient
+        person = patient.person
+        
+        if not person.birth_date or not person.gender:
+            return None
+        
+        from datetime import date
+        age = (date.today() - person.birth_date).days // 365
+        
+        # Obtener nivel de actividad de los hábitos alimenticios si existe
+        activity_level = 'sedentary'
+        if hasattr(patient, 'habitos_alimenticios'):
+            habitos = patient.habitos_alimenticios
+            if habitos.actividad_fisica_usa == 'SI':
+                # Mapear frecuencia a nivel de actividad (esto se puede mejorar)
+                activity_level = 'moderate'
+        
+        return obj.calculate_get(age, person.gender, activity_level)
+
+
+# Serializer para consultas con medidas
+class ConsultationSerializer(serializers.ModelSerializer):
+    patient_name = serializers.CharField(source='patient.person.user.get_full_name', read_only=True)
+    nutritionist_name = serializers.CharField(source='nutritionist.get_full_name', read_only=True)
+    measurements = AnthropometricMeasurementSerializer(read_only=True)
+    documents = DocumentAttachmentSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Consultation
+        fields = [
+            'id', 'patient', 'nutritionist', 'consultation_type', 'date', 'notes',
+            'patient_name', 'nutritionist_name', 'measurements', 'documents'
+        ]
+        read_only_fields = ['id', 'date']
+
+
+class ConsultationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Consultation
+        fields = ['patient', 'consultation_type', 'notes']
+
+
+# Serializers para MealPhoto (Registro de Comidas)
+class MealPhotoSerializer(serializers.ModelSerializer):
+    patient_name = serializers.CharField(source='patient.person.user.get_full_name', read_only=True)
+    patient_dni = serializers.CharField(source='patient.person.user.dni', read_only=True)
+    reviewed_by_name = serializers.CharField(source='reviewed_by.get_full_name', read_only=True, allow_null=True)
+    is_reviewed = serializers.BooleanField(read_only=True)
+    photo_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MealPhoto
+        fields = [
+            'id', 'patient', 'patient_name', 'patient_dni', 'meal_type', 'meal_date', 
+            'meal_time', 'photo', 'photo_url', 'description', 'notes', 'estimated_calories',
+            'nutritionist_comment', 'reviewed_by', 'reviewed_by_name', 'reviewed_at',
+            'is_reviewed', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'reviewed_by', 'reviewed_at']
+    
+    def get_photo_url(self, obj):
+        """Obtener URL completa de la foto"""
+        if obj.photo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.photo.url)
+            return obj.photo.url
+        return None
+
+
+class MealPhotoCreateSerializer(serializers.ModelSerializer):
+    """Serializer para crear/subir fotos de comidas (para pacientes)"""
+    class Meta:
+        model = MealPhoto
+        fields = ['meal_type', 'meal_date', 'meal_time', 'photo', 'description', 'notes', 'estimated_calories']
+    
+    def validate_photo(self, value):
+        """Validar que el archivo sea una imagen"""
+        if value:
+            # Validar tamaño (máximo 5MB)
+            if value.size > 5 * 1024 * 1024:
+                raise serializers.ValidationError("La imagen no debe superar los 5MB.")
+            
+            # Validar tipo de archivo
+            valid_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+            if hasattr(value, 'content_type') and value.content_type not in valid_types:
+                raise serializers.ValidationError("El archivo debe ser una imagen (JPEG, PNG, GIF, WEBP).")
+        
+        return value
+    
+    def validate_meal_date(self, value):
+        """Validar que la fecha no sea futura"""
+        from datetime import date
+        if value > date.today():
+            raise serializers.ValidationError("La fecha de la comida no puede ser futura.")
+        return value
+
+
+class MealPhotoReviewSerializer(serializers.ModelSerializer):
+    """Serializer para que el nutricionista revise y comente fotos de comidas"""
+    class Meta:
+        model = MealPhoto
+        fields = ['nutritionist_comment', 'estimated_calories']
+    
+    def update(self, instance, validated_data):
+        """Actualizar y marcar como revisado"""
+        from django.utils import timezone
+        
+        # Actualizar campos
+        instance.nutritionist_comment = validated_data.get('nutritionist_comment', instance.nutritionist_comment)
+        instance.estimated_calories = validated_data.get('estimated_calories', instance.estimated_calories)
+        
+        # Marcar como revisado
+        instance.reviewed_by = self.context['request'].user
+        instance.reviewed_at = timezone.now()
+        
+        instance.save()
+        return instance
+
+
+class PatientMealStatsSerializer(serializers.Serializer):
+    """Serializer para estadísticas de comidas de un paciente"""
+    patient_id = serializers.IntegerField()
+    patient_name = serializers.CharField()
+    total_meals = serializers.IntegerField()
+    reviewed_meals = serializers.IntegerField()
+    pending_review = serializers.IntegerField()
+    meals_by_type = serializers.DictField()
+    last_meal_date = serializers.DateField(allow_null=True)

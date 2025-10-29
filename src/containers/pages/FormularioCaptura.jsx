@@ -56,76 +56,6 @@ const StepNavigation = ({ onBack, onNext, onSave, loading, showSave = true, next
 };
 
 
-// Función para mapear campos del frontend a los nombres del backend
-const mapearHabitosAlBackend = (habitos) => {
-  // Extraer los tiempos de comida marcados
-  const tiempos_comida = [];
-  if (habitos.realiza_desayuno) tiempos_comida.push('Desayuno');
-  if (habitos.realiza_almuerzo) tiempos_comida.push('Almuerzo');
-  if (habitos.realiza_merienda) tiempos_comida.push('Merienda');
-  if (habitos.realiza_cena) tiempos_comida.push('Cena');
-  
-  return {
-    // Comidas por día
-    comidas_por_dia: habitos.comidas_dia ? parseInt(habitos.comidas_dia) : null,
-    tiempos_comida: tiempos_comida,
-    
-    // Salta comidas
-    salta_comidas: habitos.salta_comidas === 'si' ? 'SI' : 'NO',
-    cuales_comidas_salta: habitos.cual_comida_salta || '',
-    por_que_salta: habitos.por_que_salta || '',
-    
-    // Contexto social
-    con_quien_vive: habitos.con_quien_vive || '',
-    quien_cocina: habitos.quien_prepara || '',
-    hora_levantarse: habitos.hora_levanta || null,
-    
-    // Ingestas fuera
-    ingestas_fuera: habitos.consume_fuera_comidas === 'si' ? 'SI' : 'NO',
-    que_ingestas_fuera: habitos.que_consume_fuera || '',
-    frecuencia_ingestas_fuera: habitos.frecuencia_fuera || '',
-    
-    // Intolerancias
-    intolerancias_alergias: habitos.tiene_alergias === 'si' ? 'SI' : 'NO',
-    lista_intolerancias: habitos.cuales_alergias ? habitos.cuales_alergias.split(',').map(i => i.trim()) : [],
-    
-    // Preferencias
-    preferidos: habitos.alimentos_preferidos || '',
-    desagrados: habitos.alimentos_no_agrado || '',
-    
-    // Suplementos
-    suplementos_usa: habitos.toma_suplementos === 'si' ? 'SI' : 'NO',
-    cuales_suplementos: habitos.cuales_suplementos || '',
-    
-    // Aspectos emocionales
-    interfiere_emocional: habitos.interfiere_emocional === 'si' ? 'SI' : 'NO',
-    agrega_sal: habitos.agrega_sal === 'si' ? 'SI' : 'NO',
-    
-    // Medios de cocción
-    medios_coccion: habitos.medios_coccion || [],
-    
-    // Hidratación
-    agua_vasos_dia: habitos.vasos_agua ? parseInt(habitos.vasos_agua) : null,
-    bebidas_industriales_vasos_dia: habitos.vasos_bebidas_industriales ? parseInt(habitos.vasos_bebidas_industriales) : null,
-    
-    // Estimulantes
-    cafe_usa: habitos.consume_cafe === 'si' ? 'SI' : 'NO',
-    cafe_veces_semana: habitos.cafe_veces_semana ? parseInt(habitos.cafe_veces_semana) : null,
-    
-    alcohol_usa: habitos.consume_alcohol === 'si' ? 'SI' : 'NO',
-    alcohol_frecuencia: habitos.alcohol_frecuencia || '',
-    
-    mate_terere_usa: habitos.consume_mate === 'si' ? 'SI' : 'NO',
-    mate_terere_frecuencia: habitos.mate_frecuencia || '',
-    
-    // Actividad física
-    actividad_fisica_usa: habitos.actividad_fisica === 'si' ? 'SI' : 'NO',
-    actividad_fisica_tipo: habitos.actividad_fisica_tipo || '',
-    actividad_fisica_frecuencia: habitos.actividad_fisica_frecuencia || '',
-    actividad_fisica_duracion_min: habitos.actividad_fisica_duracion ? parseInt(habitos.actividad_fisica_duracion) : null,
-  };
-};
-
 const FormularioCaptura = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [paciente, setPaciente] = useState(null);
@@ -173,19 +103,9 @@ const FormularioCaptura = () => {
   const handleSubmit = async () => {
     try {
       setLoading(true);
-      
-      // Mapear los datos del frontend a los nombres del backend
-      const datosBackend = {
-        ...formData,
-        habitos_alimenticios: mapearHabitosAlBackend(formData.habitos_alimenticios)
-      };
-      
-      console.log('📤 Datos mapeados a enviar:', JSON.stringify(datosBackend, null, 2));
-      
-      const response = await formularioAPI.capturarFormulario(datosBackend);
+      const response = await formularioAPI.capturarFormulario(formData);
       alert('✅ Formulario guardado exitosamente!\n\nTodos los datos han sido almacenados correctamente.');
-      console.log('✅ Respuesta del servidor:', response.data);
-      
+      console.log('Respuesta:', response.data);
       // Limpiar formulario y regresar al inicio
       setFormData({
         paciente_ref: {},
@@ -197,36 +117,8 @@ const FormularioCaptura = () => {
       setPaciente(null);
       setCurrentStep(0);
     } catch (err) {
-      console.error('❌ Error completo:', err);
-      console.error('❌ Respuesta del servidor:', err.response?.data);
-      console.error('❌ Status:', err.response?.status);
-      console.error('❌ Headers:', err.response?.headers);
-      
-      // Mostrar mensaje de error más detallado
-      let errorMsg = '❌ Error al guardar el formulario.\n\n';
-      
-      if (err.response?.data) {
-        const errorData = err.response.data;
-        if (typeof errorData === 'string') {
-          errorMsg += errorData;
-        } else if (errorData.error) {
-          errorMsg += errorData.error;
-        } else if (errorData.detail) {
-          errorMsg += errorData.detail;
-        } else {
-          // Mostrar todos los errores de validación
-          errorMsg += 'Errores de validación:\n';
-          Object.entries(errorData).forEach(([key, value]) => {
-            errorMsg += `\n• ${key}: ${Array.isArray(value) ? value.join(', ') : value}`;
-          });
-        }
-      } else if (err.message) {
-        errorMsg += err.message;
-      } else {
-        errorMsg += 'Error desconocido. Verifica la consola del navegador (F12) para más detalles.';
-      }
-      
-      alert(errorMsg);
+      console.error('Error al guardar:', err);
+      alert('❌ Error al guardar el formulario.\n\nPor favor, intente nuevamente.');
       setError('Error al capturar formulario');
     } finally {
       setLoading(false);
@@ -236,38 +128,12 @@ const FormularioCaptura = () => {
   const handlePartialSave = async () => {
     try {
       setLoading(true);
-      
-      // Mapear los datos del frontend a los nombres del backend
-      const datosBackend = {
-        ...formData,
-        habitos_alimenticios: mapearHabitosAlBackend(formData.habitos_alimenticios)
-      };
-      
-      console.log('📤 Guardado parcial - Datos mapeados:', JSON.stringify(datosBackend, null, 2));
-      
-      const response = await formularioAPI.capturarFormulario(datosBackend);
+      const response = await formularioAPI.capturarFormulario(formData);
       alert('💾 Progreso guardado exitosamente!\n\nPuede continuar más tarde desde donde quedó.');
-      console.log('✅ Respuesta parcial:', response.data);
+      console.log('Respuesta parcial:', response.data);
     } catch (err) {
-      console.error('❌ Error al guardar parcialmente:', err);
-      console.error('❌ Respuesta del servidor:', err.response?.data);
-      
-      let errorMsg = '❌ Error al guardar el progreso.\n\n';
-      if (err.response?.data) {
-        const errorData = err.response.data;
-        if (typeof errorData === 'string') {
-          errorMsg += errorData;
-        } else if (errorData.error) {
-          errorMsg += errorData.error;
-        } else {
-          errorMsg += 'Errores:\n';
-          Object.entries(errorData).forEach(([key, value]) => {
-            errorMsg += `\n• ${key}: ${Array.isArray(value) ? value.join(', ') : value}`;
-          });
-        }
-      }
-      
-      alert(errorMsg);
+      console.error('Error al guardar parcialmente:', err);
+      alert('❌ Error al guardar el progreso.\n\nPor favor, intente nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -451,11 +317,8 @@ const HistoriaClinicaStep = ({ formData, setFormData, onNext, onBack, onSave, lo
         antecedentes_familiares: data.antecedentes_familiares.split(',').map(item => item.trim()).filter(item => item),
         enfermedades_actuales: data.enfermedades_actuales.split(',').map(item => item.trim()).filter(item => item),
         modifico_dieta: data.modifico_dieta,
-        // Campos correctos según el modelo Django
-        medicacion_usa: data.medicacion_usa,
-        medicacion_detalle: data.medicacion_detalle || '',
-        cirugias_tiene: data.cirugias_tiene,
-        cirugias_detalle: data.cirugias_detalle || ''
+        medicacion: { usa: data.medicacion_usa, detalle: data.medicacion_detalle },
+        cirugias_recientes: { tiene: data.cirugias_tiene, detalle: data.cirugias_detalle }
       }
     }));
     onNext();

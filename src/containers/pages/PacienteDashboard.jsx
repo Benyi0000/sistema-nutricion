@@ -4,6 +4,7 @@ import { logout } from '../../redux/actions/auth';
 import Layout from '../../hocs/layouts/Layout';
 import ProfileSettings from '../../components/profile/ProfileSettings';
 import AppointmentCalendar from '../../components/appointments/AppointmentCalendar';
+import MealPhotoUpload from '../../components/meals/MealPhotoUpload';
 import { appointmentsAPI } from '../../lib/api';
 import { formatLocalDate } from '../../utils/dateUtils';
 
@@ -216,7 +217,7 @@ function PacienteDashboard() {
                                 </div>
                             </div>
 
-                            {/* Subir Comidas - Stub */}
+                            {/* Registro de Comidas - FUNCIONAL */}
                             <div className="bg-white shadow rounded-lg">
                                 <div className="px-6 py-4 border-b border-gray-200">
                                     <h3 className="text-lg font-medium text-gray-900 flex items-center">
@@ -227,24 +228,7 @@ function PacienteDashboard() {
                                     </h3>
                                 </div>
                                 <div className="p-6">
-                                    <div className="text-center py-8">
-                                        <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                                        </svg>
-                                        <h4 className="text-lg font-medium text-gray-900 mb-2">Subir Fotos de Comidas</h4>
-                                        <p className="text-gray-600 mb-4">
-                                            Documenta tus comidas para que tu nutricionista pueda hacer un mejor seguimiento.
-                                        </p>
-                                        <button 
-                                            disabled 
-                                            className="bg-gray-400 text-white px-4 py-2 rounded-md text-sm font-medium cursor-not-allowed"
-                                        >
-                                            Próximamente
-                                        </button>
-                                        <p className="text-xs text-gray-500 mt-2">
-                                            Esta función estará disponible en futuras versiones
-                                        </p>
-                                    </div>
+                                    <MealPhotoUpload />
                                 </div>
                             </div>
 

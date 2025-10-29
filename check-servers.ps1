@@ -69,3 +69,4 @@ if ($backendRunning -and $frontendRunning) {
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
+

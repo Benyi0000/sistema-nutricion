@@ -8,7 +8,10 @@ from django.core.mail import send_mail
 from django.conf import settings
 import logging
 
-from .models import User, Patient, PatientInvitation, Appointment
+from .models import (
+    User, Patient, PatientInvitation, Appointment, DocumentAttachment,
+    Payment, PaymentProof, Consultation, AnthropometricMeasurement, MealPhoto
+)
 from .serializers import (
     UserSerializer, 
     LoginSerializer, 
@@ -30,7 +33,19 @@ from .serializers import (
     AppointmentCreateSerializer,
     AvailableDateSerializer,
     AvailableTimeSlotSerializer,
-    NutritionistSerializer
+    NutritionistSerializer,
+    DocumentAttachmentSerializer,
+    DocumentAttachmentCreateSerializer,
+    PaymentSerializer,
+    PaymentCreateSerializer,
+    PaymentUpdateSerializer,
+    ConsultationSerializer,
+    ConsultationCreateSerializer,
+    AnthropometricMeasurementSerializer,
+    MealPhotoSerializer,
+    MealPhotoCreateSerializer,
+    MealPhotoReviewSerializer,
+    PatientMealStatsSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -1081,3 +1096,746 @@ class NutritionistDetailView(generics.RetrieveUpdateDestroyAPIView):
             )
         
         return super().destroy(request, *args, **kwargs)
+
+
+# ===== VISTAS PARA DOCUMENTOS =====
+
+class DocumentAttachmentListCreateView(generics.ListCreateAPIView):
+    """Listar y subir documentos"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return DocumentAttachmentCreateSerializer
+        return DocumentAttachmentSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Filtrar por paciente si se proporciona
+        patient_id = self.request.query_params.get('patient_id')
+        consultation_id = self.request.query_params.get('consultation_id')
+        
+        if user.role == 'nutricionista':
+            # Nutricionista ve documentos de sus pacientes
+            queryset = DocumentAttachment.objects.filter(
+                patient__assigned_nutritionist=user
+            )
+        elif user.role == 'paciente':
+            # Paciente ve solo sus documentos
+            try:
+                patient = user.person.patient
+                queryset = DocumentAttachment.objects.filter(patient=patient)
+            except AttributeError:
+                return DocumentAttachment.objects.none()
+        else:
+            return DocumentAttachment.objects.none()
+        
+        # Aplicar filtros
+        if patient_id:
+            queryset = queryset.filter(patient_id=patient_id)
+        if consultation_id:
+            queryset = queryset.filter(consultation_id=consultation_id)
+        
+        return queryset.order_by('-uploaded_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)
+
+
+class DocumentAttachmentDetailView(generics.RetrieveDestroyAPIView):
+    """Ver y eliminar un documento"""
+    serializer_class = DocumentAttachmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.role == 'nutricionista':
+            return DocumentAttachment.objects.filter(
+                patient__assigned_nutritionist=user
+            )
+        elif user.role == 'paciente':
+            try:
+                patient = user.person.patient
+                return DocumentAttachment.objects.filter(patient=patient)
+            except AttributeError:
+                return DocumentAttachment.objects.none()
+        
+        return DocumentAttachment.objects.none()
+
+
+# ===== VISTAS PARA CONSULTAS =====
+
+class ConsultationListCreateView(generics.ListCreateAPIView):
+    """Listar y crear consultas"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return ConsultationCreateSerializer
+        return ConsultationSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.role == 'nutricionista':
+            # Nutricionista ve sus consultas
+            queryset = Consultation.objects.filter(nutritionist=user)
+            
+            # Filtrar por paciente si se proporciona
+            patient_id = self.request.query_params.get('patient_id')
+            if patient_id:
+                queryset = queryset.filter(patient_id=patient_id)
+        elif user.role == 'paciente':
+            # Paciente ve solo sus consultas
+            try:
+                patient = user.person.patient
+                queryset = Consultation.objects.filter(patient=patient)
+            except AttributeError:
+                return Consultation.objects.none()
+        else:
+            return Consultation.objects.none()
+        
+        return queryset.order_by('-date')
+    
+    def perform_create(self, serializer):
+        serializer.save(nutritionist=self.request.user)
+
+
+class ConsultationDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Ver, editar y eliminar consulta"""
+    serializer_class = ConsultationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.role == 'nutricionista':
+            return Consultation.objects.filter(nutritionist=user)
+        elif user.role == 'paciente':
+            try:
+                patient = user.person.patient
+                return Consultation.objects.filter(patient=patient)
+            except AttributeError:
+                return Consultation.objects.none()
+        
+        return Consultation.objects.none()
+
+
+# ===== VISTAS PARA PAGOS =====
+
+class PaymentListCreateView(generics.ListCreateAPIView):
+    """Listar y crear pagos"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return PaymentCreateSerializer
+        return PaymentSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.role == 'nutricionista':
+            # Nutricionista ve pagos recibidos
+            queryset = Payment.objects.filter(nutritionist=user)
+            
+            # Filtros
+            status_filter = self.request.query_params.get('status')
+            patient_id = self.request.query_params.get('patient_id')
+            
+            if status_filter:
+                queryset = queryset.filter(status=status_filter)
+            if patient_id:
+                queryset = queryset.filter(patient_id=patient_id)
+        elif user.role == 'paciente':
+            # Paciente ve sus pagos
+            try:
+                patient = user.person.patient
+                queryset = Payment.objects.filter(patient=patient)
+            except AttributeError:
+                return Payment.objects.none()
+        else:
+            return Payment.objects.none()
+        
+        return queryset.order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        from .services import MercadoPagoService
+        from django.utils import timezone
+        
+        payment_method = serializer.validated_data.get('payment_method')
+        
+        # Si es pago manual (efectivo, transferencia), aprobar automáticamente
+        if payment_method in ['cash', 'transfer', 'card']:
+            serializer.save(
+                nutritionist=self.request.user,
+                status='approved',
+                payment_date=timezone.now()
+            )
+        elif payment_method == 'mercadopago':
+            # Crear pago pendiente y generar preferencia de MercadoPago
+            payment = serializer.save(
+                nutritionist=self.request.user,
+                status='pending'
+            )
+            
+            # Crear preferencia en MercadoPago
+            mp_service = MercadoPagoService()
+            
+            payment_data = {
+                'title': payment.description,
+                'unit_price': float(payment.amount),
+                'quantity': 1,
+                'payer_email': payment.patient.person.user.email,
+                'external_reference': str(payment.id)
+            }
+            
+            result = mp_service.create_payment_preference(payment_data)
+            
+            if result.get('success'):
+                payment.mercadopago_preference_id = result['preference_id']
+                payment.save()
+        else:
+            serializer.save(nutritionist=self.request.user)
+
+
+class PaymentDetailView(generics.RetrieveUpdateAPIView):
+    """Ver y actualizar un pago"""
+    serializer_class = PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.role == 'nutricionista':
+            return Payment.objects.filter(nutritionist=user)
+        elif user.role == 'paciente':
+            try:
+                patient = user.person.patient
+                return Payment.objects.filter(patient=patient)
+            except AttributeError:
+                return Payment.objects.none()
+        
+        return Payment.objects.none()
+    
+    def get_serializer_class(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return PaymentUpdateSerializer
+        return PaymentSerializer
+
+
+class MercadoPagoWebhookView(APIView):
+    """Webhook para recibir notificaciones de MercadoPago"""
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        from .services import MercadoPagoService
+        from django.utils import timezone
+        
+        # Obtener datos del webhook
+        data = request.data
+        payment_id = data.get('data', {}).get('id')
+        
+        if not payment_id:
+            return Response({'error': 'Invalid webhook data'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Obtener información del pago desde MercadoPago
+        mp_service = MercadoPagoService()
+        result = mp_service.get_payment_info(payment_id)
+        
+        if not result.get('success'):
+            return Response({'error': 'Could not fetch payment info'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        mp_payment = result['payment']
+        external_reference = mp_payment.get('external_reference')
+        
+        if not external_reference:
+            return Response({'status': 'ok'}, status=status.HTTP_200_OK)
+        
+        try:
+            payment = Payment.objects.get(id=external_reference)
+            
+            # Actualizar estado del pago
+            payment.mercadopago_payment_id = str(payment_id)
+            payment.mercadopago_status = mp_payment.get('status')
+            payment.mercadopago_status_detail = mp_payment.get('status_detail')
+            
+            if mp_payment.get('status') == 'approved':
+                payment.status = 'approved'
+                payment.payment_date = timezone.now()
+                
+                # Enviar confirmación por email
+                from .services import EmailNotificationService
+                EmailNotificationService.send_payment_confirmation(payment)
+            elif mp_payment.get('status') == 'rejected':
+                payment.status = 'rejected'
+            
+            payment.save()
+            
+            return Response({'status': 'ok'}, status=status.HTTP_200_OK)
+        
+        except Payment.DoesNotExist:
+            return Response({'error': 'Payment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# ===== VISTAS PARA REPORTES =====
+
+class PatientReportPDFView(APIView):
+    """Generar reporte de paciente en PDF"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, patient_id):
+        from django.http import HttpResponse
+        from .services import ReportService
+        
+        user = request.user
+        
+        # Verificar permisos
+        try:
+            if user.role == 'nutricionista':
+                patient = Patient.objects.get(id=patient_id, assigned_nutritionist=user)
+            elif user.role == 'paciente':
+                patient = user.person.patient
+                if patient.id != int(patient_id):
+                    return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
+        except Patient.DoesNotExist:
+            return Response({'error': 'Paciente no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Generar PDF
+        pdf_buffer = ReportService.generate_patient_report_pdf(patient)
+        
+        response = HttpResponse(pdf_buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="reporte_paciente_{patient.person.user.dni}.pdf"'
+        
+        return response
+
+
+class PatientEvolutionExcelView(APIView):
+    """Generar reporte de evolución en Excel"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, patient_id):
+        from django.http import HttpResponse
+        from .services import ReportService
+        
+        user = request.user
+        
+        # Verificar permisos
+        try:
+            if user.role == 'nutricionista':
+                patient = Patient.objects.get(id=patient_id, assigned_nutritionist=user)
+            elif user.role == 'paciente':
+                patient = user.person.patient
+                if patient.id != int(patient_id):
+                    return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
+        except Patient.DoesNotExist:
+            return Response({'error': 'Paciente no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Generar Excel
+        excel_buffer = ReportService.generate_patient_evolution_excel(patient)
+        
+        response = HttpResponse(
+            excel_buffer, 
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="evolucion_paciente_{patient.person.user.dni}.xlsx"'
+        
+        return response
+
+
+class MonthlyReportPDFView(APIView):
+    """Generar reporte mensual del nutricionista en PDF"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        from django.http import HttpResponse
+        from .services import ReportService
+        from datetime import datetime, timedelta
+        
+        user = request.user
+        
+        if user.role != 'nutricionista':
+            return Response({'error': 'Solo nutricionistas pueden generar este reporte'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Obtener fechas del query params
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
+        
+        if start_date_str and end_date_str:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        else:
+            # Por defecto, mes actual
+            today = datetime.now().date()
+            start_date = today.replace(day=1)
+            if today.month == 12:
+                end_date = today.replace(year=today.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                end_date = today.replace(month=today.month + 1, day=1) - timedelta(days=1)
+        
+        # Generar PDF
+        pdf_buffer = ReportService.generate_monthly_report_pdf(user, start_date, end_date)
+        
+        response = HttpResponse(pdf_buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="reporte_mensual_{user.dni}_{start_date.strftime("%Y%m")}.pdf"'
+        
+        return response
+
+
+# ===== VISTA PARA ENVÍO MANUAL DE RECORDATORIOS =====
+
+class SendAppointmentReminderView(APIView):
+    """Enviar recordatorio de cita manualmente"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request, appointment_id):
+        from .services import EmailNotificationService
+        
+        user = request.user
+        
+        if user.role != 'nutricionista':
+            return Response({'error': 'Solo nutricionistas pueden enviar recordatorios'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            appointment = Appointment.objects.get(id=appointment_id, nutritionist=user)
+        except Appointment.DoesNotExist:
+            return Response({'error': 'Cita no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Enviar recordatorio
+        success = EmailNotificationService.send_appointment_reminder(appointment)
+        
+        if success:
+            return Response({'message': 'Recordatorio enviado exitosamente'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Error al enviar recordatorio'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ===== VISTAS PARA REGISTRO DE COMIDAS (MEAL PHOTOS) =====
+
+class MealPhotoListCreateView(generics.ListCreateAPIView):
+    """Listar y crear fotos de comidas"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return MealPhotoCreateSerializer
+        return MealPhotoSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.role == 'nutricionista':
+            # Nutricionista ve fotos de comidas de sus pacientes asignados
+            queryset = MealPhoto.objects.filter(
+                patient__assigned_nutritionist=user
+            )
+            
+            # Filtros opcionales
+            patient_id = self.request.query_params.get('patient_id')
+            meal_type = self.request.query_params.get('meal_type')
+            start_date = self.request.query_params.get('start_date')
+            end_date = self.request.query_params.get('end_date')
+            reviewed = self.request.query_params.get('reviewed')
+            
+            if patient_id:
+                queryset = queryset.filter(patient_id=patient_id)
+            if meal_type:
+                queryset = queryset.filter(meal_type=meal_type)
+            if start_date:
+                queryset = queryset.filter(meal_date__gte=start_date)
+            if end_date:
+                queryset = queryset.filter(meal_date__lte=end_date)
+            if reviewed is not None:
+                if reviewed.lower() == 'true':
+                    queryset = queryset.filter(reviewed_by__isnull=False)
+                elif reviewed.lower() == 'false':
+                    queryset = queryset.filter(reviewed_by__isnull=True)
+            
+        elif user.role == 'paciente':
+            # Paciente ve solo sus fotos de comidas
+            try:
+                patient = user.person.patient
+                queryset = MealPhoto.objects.filter(patient=patient)
+                
+                # Filtros opcionales para paciente
+                meal_type = self.request.query_params.get('meal_type')
+                start_date = self.request.query_params.get('start_date')
+                end_date = self.request.query_params.get('end_date')
+                
+                if meal_type:
+                    queryset = queryset.filter(meal_type=meal_type)
+                if start_date:
+                    queryset = queryset.filter(meal_date__gte=start_date)
+                if end_date:
+                    queryset = queryset.filter(meal_date__lte=end_date)
+                    
+            except AttributeError:
+                return MealPhoto.objects.none()
+        else:
+            return MealPhoto.objects.none()
+        
+        return queryset.order_by('-meal_date', '-meal_time')
+    
+    def perform_create(self, serializer):
+        """Al crear, asociar automáticamente al paciente del usuario autenticado"""
+        user = self.request.user
+        
+        if user.role != 'paciente':
+            raise serializers.ValidationError({
+                'error': 'Solo los pacientes pueden subir fotos de comidas'
+            })
+        
+        try:
+            patient = user.person.patient
+            serializer.save(patient=patient)
+        except AttributeError:
+            raise serializers.ValidationError({
+                'error': 'Usuario no tiene perfil de paciente asociado. Por favor contacta al administrador.'
+            })
+
+
+class MealPhotoDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Ver, editar y eliminar una foto de comida"""
+    serializer_class = MealPhotoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.role == 'nutricionista':
+            return MealPhoto.objects.filter(
+                patient__assigned_nutritionist=user
+            )
+        elif user.role == 'paciente':
+            try:
+                patient = user.person.patient
+                return MealPhoto.objects.filter(patient=patient)
+            except AttributeError:
+                return MealPhoto.objects.none()
+        
+        return MealPhoto.objects.none()
+    
+    def destroy(self, request, *args, **kwargs):
+        """Solo el paciente puede eliminar sus fotos"""
+        instance = self.get_object()
+        
+        if request.user.role == 'paciente':
+            # Verificar que es el dueño
+            if instance.patient.person.user != request.user:
+                return Response(
+                    {'error': 'No puedes eliminar esta foto'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            return super().destroy(request, *args, **kwargs)
+        else:
+            return Response(
+                {'error': 'Solo los pacientes pueden eliminar fotos de comidas'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+
+class MealPhotoReviewView(generics.UpdateAPIView):
+    """Vista para que el nutricionista revise y comente una foto de comida"""
+    serializer_class = MealPhotoReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.role == 'nutricionista':
+            return MealPhoto.objects.filter(
+                patient__assigned_nutritionist=user
+            )
+        
+        return MealPhoto.objects.none()
+    
+    def update(self, request, *args, **kwargs):
+        if request.user.role != 'nutricionista':
+            return Response(
+                {'error': 'Solo nutricionistas pueden revisar fotos de comidas'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().update(request, *args, **kwargs)
+
+
+class PatientMealStatsView(APIView):
+    """Vista para obtener estadísticas de comidas de un paciente"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, patient_id):
+        user = request.user
+        
+        # Verificar permisos
+        try:
+            if user.role == 'nutricionista':
+                patient = Patient.objects.get(id=patient_id, assigned_nutritionist=user)
+            elif user.role == 'paciente':
+                patient = user.person.patient
+                if patient.id != int(patient_id):
+                    return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
+        except Patient.DoesNotExist:
+            return Response({'error': 'Paciente no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Calcular estadísticas
+        meals = MealPhoto.objects.filter(patient=patient)
+        total_meals = meals.count()
+        reviewed_meals = meals.filter(reviewed_by__isnull=False).count()
+        pending_review = total_meals - reviewed_meals
+        
+        # Comidas por tipo
+        from django.db.models import Count
+        meals_by_type = dict(
+            meals.values('meal_type').annotate(count=Count('id')).values_list('meal_type', 'count')
+        )
+        
+        # Última comida registrada
+        last_meal = meals.order_by('-meal_date', '-meal_time').first()
+        last_meal_date = last_meal.meal_date if last_meal else None
+        
+        stats = {
+            'patient_id': patient.id,
+            'patient_name': patient.person.user.get_full_name(),
+            'total_meals': total_meals,
+            'reviewed_meals': reviewed_meals,
+            'pending_review': pending_review,
+            'meals_by_type': meals_by_type,
+            'last_meal_date': last_meal_date
+        }
+        
+        serializer = PatientMealStatsSerializer(stats)
+        return Response(serializer.data)
+
+
+# ===== VISTA PARA HISTORIAL DE CONSULTAS DEL NUTRICIONISTA =====
+
+class NutritionistConsultationHistoryView(APIView):
+    """Vista completa del historial de consultas del nutricionista con filtros avanzados"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        if user.role != 'nutricionista':
+            return Response(
+                {'error': 'Solo nutricionistas pueden acceder a este historial'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Filtros
+        patient_id = request.query_params.get('patient_id')
+        consultation_type = request.query_params.get('consultation_type')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        # Query base
+        consultations = Consultation.objects.filter(nutritionist=user)
+        
+        # Aplicar filtros
+        if patient_id:
+            consultations = consultations.filter(patient_id=patient_id)
+        if consultation_type:
+            consultations = consultations.filter(consultation_type=consultation_type)
+        if start_date:
+            consultations = consultations.filter(date__gte=start_date)
+        if end_date:
+            consultations = consultations.filter(date__lte=end_date)
+        
+        # Ordenar por fecha descendente
+        consultations = consultations.order_by('-date')
+        
+        # Serializar
+        serializer = ConsultationSerializer(consultations, many=True, context={'request': request})
+        
+        # Estadísticas adicionales
+        from django.db.models import Count
+        stats = {
+            'total_consultations': consultations.count(),
+            'by_type': dict(
+                consultations.values('consultation_type')
+                .annotate(count=Count('id'))
+                .values_list('consultation_type', 'count')
+            ),
+            'unique_patients': consultations.values('patient').distinct().count()
+        }
+        
+        return Response({
+            'consultations': serializer.data,
+            'stats': stats
+        })
+
+
+class PatientConsultationHistoryView(APIView):
+    """Vista del historial de consultas de un paciente específico"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, patient_id):
+        user = request.user
+        
+        # Verificar permisos
+        try:
+            if user.role == 'nutricionista':
+                patient = Patient.objects.get(id=patient_id, assigned_nutritionist=user)
+            elif user.role == 'paciente':
+                patient = user.person.patient
+                if patient.id != int(patient_id):
+                    return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
+        except Patient.DoesNotExist:
+            return Response({'error': 'Paciente no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Obtener consultas
+        consultations = Consultation.objects.filter(patient=patient).order_by('-date')
+        
+        # Filtros opcionales
+        consultation_type = request.query_params.get('consultation_type')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        if consultation_type:
+            consultations = consultations.filter(consultation_type=consultation_type)
+        if start_date:
+            consultations = consultations.filter(date__gte=start_date)
+        if end_date:
+            consultations = consultations.filter(date__lte=end_date)
+        
+        # Serializar
+        serializer = ConsultationSerializer(consultations, many=True, context={'request': request})
+        
+        # Información del paciente
+        patient_info = {
+            'id': patient.id,
+            'name': patient.person.user.get_full_name(),
+            'dni': patient.person.user.dni,
+            'email': patient.person.user.email,
+            'phone': patient.person.phone
+        }
+        
+        # Evolución de peso e IMC
+        measurements = []
+        for consultation in consultations:
+            if hasattr(consultation, 'measurements'):
+                m = consultation.measurements
+                measurements.append({
+                    'date': consultation.date.strftime('%Y-%m-%d'),
+                    'weight': m.weight,
+                    'height': m.height,
+                    'bmi': m.bmi,
+                    'waist_hip_ratio': m.waist_hip_ratio
+                })
+        
+        return Response({
+            'patient': patient_info,
+            'consultations': serializer.data,
+            'total_consultations': consultations.count(),
+            'measurements_evolution': measurements
+        })

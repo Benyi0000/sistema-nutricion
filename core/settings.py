@@ -176,7 +176,18 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = env.list('CORS_ORIGIN_WHITELIST_DEV')
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS_DEV')
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# ---- Email Configuration ----
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@nutricion.com')
+
+# ---- MercadoPago Configuration ----
+MERCADOPAGO_ACCESS_TOKEN = env('MERCADOPAGO_ACCESS_TOKEN', default='')
+MERCADOPAGO_PUBLIC_KEY = env('MERCADOPAGO_PUBLIC_KEY', default='')
 
 # ---- Ajustes de producción ----
 if not DEBUG:

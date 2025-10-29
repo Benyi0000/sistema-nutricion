@@ -5,6 +5,7 @@ import { logout } from '../../redux/actions/auth';
 import { patientsAPI, appointmentsAPI } from '../../lib/api';
 import Layout from '../../hocs/layouts/Layout';
 import ProfileSettings from '../../components/profile/ProfileSettings';
+import PatientMealsTracking from '../../components/meals/PatientMealsTracking';
 import { formatLocalDate } from '../../utils/dateUtils';
 
 function NutricionistaDashboard() {
@@ -478,6 +479,11 @@ function NutricionistaDashboard() {
                                     </div>
                                 )}
                             </div>
+                        </div>
+
+                        {/* Seguimiento de Comidas de Pacientes */}
+                        <div className="mt-8">
+                            <PatientMealsTracking />
                         </div>
                     </div>
                 </main>

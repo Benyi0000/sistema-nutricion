@@ -6,3 +6,16 @@ djangorestframework-simplejwt == 5.5.1
 django-storages == 1.14.6
 django-ckeditor == 6.7.3
 pillow
+
+# Generación de reportes
+reportlab >= 4.0.0
+openpyxl >= 3.1.0
+
+# Integración de pagos
+mercadopago >= 2.2.0
+
+# Envío de emails
+python-decouple >= 3.8
+
+# Utilidades
+python-dateutil >= 2.8.2

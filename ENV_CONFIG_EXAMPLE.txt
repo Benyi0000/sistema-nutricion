@@ -1,0 +1,57 @@
+# ========================================
+# CONFIGURACIÓN DE VARIABLES DE ENTORNO
+# ========================================
+# Copia este archivo como .env en la raíz del proyecto y ajusta los valores
+
+# Django Settings
+SECRET_KEY=tu-secret-key-super-secreta-aqui
+DEBUG=True
+
+# Allowed Hosts
+ALLOWED_HOSTS_DEV=localhost,127.0.0.1
+ALLOWED_HOSTS_DEPLOY=tu-dominio.com
+
+# CORS Settings
+CORS_ORIGIN_WHITELIST_DEV=http://localhost:5175,http://127.0.0.1:5175
+CORS_ORIGIN_WHITELIST_DEPLOY=https://tu-dominio.com
+
+# CSRF Settings
+CSRF_TRUSTED_ORIGINS_DEV=http://localhost:5175,http://127.0.0.1:5175
+CSRF_TRUSTED_ORIGINS_DEPLOY=https://tu-dominio.com
+
+# Database (opcional - para producción con PostgreSQL)
+# DATABASES_URL=postgres://usuario:password@host:puerto/nombre_db
+
+# ========================================
+# MERCADOPAGO CONFIGURATION (SANDBOX)
+# ========================================
+# Para obtener las credenciales de prueba:
+# 1. Ingresa a https://www.mercadopago.com.ar/developers
+# 2. Ve a "Tus integraciones" > "Credenciales"
+# 3. Selecciona "Credenciales de prueba"
+# 4. Copia el Access Token y Public Key
+
+MERCADOPAGO_ACCESS_TOKEN=TEST-tu-access-token-de-mercadopago-aqui
+MERCADOPAGO_PUBLIC_KEY=TEST-tu-public-key-de-mercadopago-aqui
+
+# ========================================
+# EMAIL CONFIGURATION
+# ========================================
+# Para Gmail, necesitas generar una "Contraseña de aplicación":
+# 1. Ve a tu cuenta de Google > Seguridad
+# 2. Activa la verificación en dos pasos
+# 3. Ve a "Contraseñas de aplicaciones"
+# 4. Genera una nueva para "Correo" y copia la contraseña
+
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=tu-email@gmail.com
+EMAIL_HOST_PASSWORD=tu-password-de-aplicacion-de-16-caracteres
+DEFAULT_FROM_EMAIL=tu-email@gmail.com
+
+# Para desarrollo/pruebas locales (los emails se mostrarán en consola):
+# EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+
+

@@ -28,10 +28,17 @@ class User(AbstractUser):
 
 
 class Person(models.Model):
+    GENDER_CHOICES = [
+        ('M', 'Masculino'),
+        ('F', 'Femenino'),
+        ('O', 'Otro'),
+    ]
+    
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='person')
     birth_date = models.DateField(null=True, blank=True)
     phone = models.CharField(max_length=15, blank=True)
     address = models.TextField(blank=True)
+    gender = models.CharField(max_length=1, choices=GENDER_CHOICES, null=True, blank=True)
     emergency_contact = models.CharField(max_length=100, blank=True)
     emergency_phone = models.CharField(max_length=15, blank=True)
     
@@ -108,10 +115,55 @@ class AnthropometricMeasurement(models.Model):
     
     @property
     def waist_hip_ratio(self):
-        """Calcula la relación cintura-cadera"""
+        """Calcula la relación cintura-cadera (ICC)"""
         if self.waist_circumference and self.hip_circumference:
             return round(self.waist_circumference / self.hip_circumference, 2)
         return None
+    
+    def calculate_tmb(self, age, gender):
+        """
+        Calcula la Tasa Metabólica Basal (TMB) usando la ecuación de Harris-Benedict revisada
+        gender: 'M' para masculino, 'F' para femenino
+        age: edad en años
+        """
+        if not self.weight or not self.height or not age:
+            return None
+        
+        height_cm = self.height * 100  # Convertir metros a cm
+        
+        if gender == 'M':
+            # TMB Hombres = 88.362 + (13.397 × peso en kg) + (4.799 × altura en cm) - (5.677 × edad)
+            tmb = 88.362 + (13.397 * self.weight) + (4.799 * height_cm) - (5.677 * age)
+        elif gender == 'F':
+            # TMB Mujeres = 447.593 + (9.247 × peso en kg) + (3.098 × altura en cm) - (4.330 × edad)
+            tmb = 447.593 + (9.247 * self.weight) + (3.098 * height_cm) - (4.330 * age)
+        else:
+            return None
+        
+        return round(tmb, 2)
+    
+    def calculate_get(self, age, gender, activity_level='sedentary'):
+        """
+        Calcula el Gasto Energético Total (GET) = TMB × Factor de Actividad
+        activity_level: 'sedentary', 'light', 'moderate', 'active', 'very_active'
+        """
+        tmb = self.calculate_tmb(age, gender)
+        if not tmb:
+            return None
+        
+        # Factores de actividad física
+        activity_factors = {
+            'sedentary': 1.2,      # Sedentario (poco o ningún ejercicio)
+            'light': 1.375,        # Ligera (ejercicio 1-3 días/semana)
+            'moderate': 1.55,      # Moderada (ejercicio 3-5 días/semana)
+            'active': 1.725,       # Activa (ejercicio 6-7 días/semana)
+            'very_active': 1.9,    # Muy activa (ejercicio intenso diario)
+        }
+        
+        factor = activity_factors.get(activity_level, 1.2)
+        get = tmb * factor
+        
+        return round(get, 2)
     
     def __str__(self):
         return f"Medidas - {self.consultation.patient.person.user.get_full_name()} - {self.consultation.date.strftime('%d/%m/%Y')}"
@@ -382,6 +434,36 @@ class PatientInvitation(models.Model):
         return f"Invitación: {self.first_name} {self.last_name} ({self.email}) - {self.get_status_display()}"
 
 
+class DocumentAttachment(models.Model):
+    """Modelo para adjuntar documentos (análisis clínicos, recetas, imágenes) a pacientes o consultas"""
+    DOCUMENT_TYPES = [
+        ('analysis', 'Análisis Clínico'),
+        ('recipe', 'Receta Médica'),
+        ('image', 'Imagen'),
+        ('report', 'Reporte'),
+        ('other', 'Otro'),
+    ]
+    
+    # Puede estar asociado a un paciente o a una consulta específica
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='documents', null=True, blank=True)
+    consultation = models.ForeignKey('Consultation', on_delete=models.CASCADE, related_name='documents', null=True, blank=True)
+    
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPES)
+    title = models.CharField(max_length=200, help_text="Título del documento")
+    description = models.TextField(blank=True, help_text="Descripción adicional")
+    file = models.FileField(upload_to='documents/', help_text="Archivo adjunto")
+    
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_documents')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+    
+    def __str__(self):
+        target = f"Paciente: {self.patient}" if self.patient else f"Consulta: {self.consultation}"
+        return f"{self.get_document_type_display()} - {self.title} - {target}"
+
+
 class Appointment(models.Model):
     """Modelo para gestionar las citas entre pacientes y nutricionistas"""
     STATUS_CHOICES = [
@@ -462,3 +544,157 @@ class Appointment(models.Model):
     
     def __str__(self):
         return f"Cita: {self.patient.person.user.get_full_name()} con {self.nutritionist.get_full_name()} - {self.appointment_date.strftime('%d/%m/%Y')} {self.appointment_time.strftime('%H:%M')}"
+
+
+class Payment(models.Model):
+    """Modelo para gestionar los pagos de pacientes"""
+    PAYMENT_METHOD_CHOICES = [
+        ('cash', 'Efectivo'),
+        ('transfer', 'Transferencia'),
+        ('mercadopago', 'MercadoPago'),
+        ('card', 'Tarjeta de Crédito/Débito'),
+        ('other', 'Otro'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('approved', 'Aprobado'),
+        ('rejected', 'Rechazado'),
+        ('cancelled', 'Cancelado'),
+        ('refunded', 'Reembolsado'),
+    ]
+    
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='payments')
+    nutritionist = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_payments', limit_choices_to={'role': 'nutricionista'})
+    
+    # Información del pago
+    amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Monto del pago")
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Relación con consulta o plan (opcional)
+    consultation = models.ForeignKey(Consultation, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+    appointment = models.ForeignKey(Appointment, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+    nutrition_plan = models.ForeignKey(NutritionPlan, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+    
+    # Descripción y notas
+    description = models.CharField(max_length=200, help_text="Descripción del pago")
+    notes = models.TextField(blank=True, help_text="Notas adicionales")
+    
+    # Datos de MercadoPago (si aplica)
+    mercadopago_payment_id = models.CharField(max_length=100, blank=True, null=True, unique=True)
+    mercadopago_preference_id = models.CharField(max_length=100, blank=True, null=True)
+    mercadopago_status = models.CharField(max_length=50, blank=True, null=True)
+    mercadopago_status_detail = models.CharField(max_length=200, blank=True, null=True)
+    
+    # Control de fechas
+    payment_date = models.DateTimeField(null=True, blank=True, help_text="Fecha en que se completó el pago")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['patient', 'status']),
+            models.Index(fields=['nutritionist', 'status']),
+            models.Index(fields=['mercadopago_payment_id']),
+        ]
+    
+    def __str__(self):
+        return f"Pago #{self.id} - {self.patient.person.user.get_full_name()} - ${self.amount} - {self.get_status_display()}"
+
+
+class PaymentProof(models.Model):
+    """Modelo para almacenar comprobantes de pago"""
+    payment = models.OneToOneField(Payment, on_delete=models.CASCADE, related_name='proof')
+    
+    # Datos del comprobante
+    proof_number = models.CharField(max_length=50, unique=True, help_text="Número de comprobante")
+    issue_date = models.DateField(auto_now_add=True)
+    
+    # Archivo del comprobante (PDF generado)
+    pdf_file = models.FileField(upload_to='payment_proofs/', null=True, blank=True)
+    
+    # Información fiscal (opcional)
+    tax_id = models.CharField(max_length=20, blank=True, help_text="CUIT/CUIL")
+    fiscal_address = models.TextField(blank=True, help_text="Domicilio fiscal")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Comprobante #{self.proof_number} - Pago #{self.payment.id}"
+    
+    def generate_proof_number(self):
+        """Genera un número de comprobante único"""
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        return f"COMP-{timestamp}-{self.payment.id}"
+    
+    def save(self, *args, **kwargs):
+        if not self.proof_number:
+            self.proof_number = self.generate_proof_number()
+        super().save(*args, **kwargs)
+
+
+class MealPhoto(models.Model):
+    """Modelo para el registro de fotos de comidas de los pacientes"""
+    MEAL_TYPE_CHOICES = [
+        ('breakfast', 'Desayuno'),
+        ('morning_snack', 'Colación Media Mañana'),
+        ('lunch', 'Almuerzo'),
+        ('afternoon_snack', 'Merienda'),
+        ('dinner', 'Cena'),
+        ('night_snack', 'Colación Nocturna'),
+        ('other', 'Otro'),
+    ]
+    
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='meal_photos')
+    
+    # Información de la comida
+    meal_type = models.CharField(max_length=20, choices=MEAL_TYPE_CHOICES, help_text="Tipo de comida")
+    meal_date = models.DateField(help_text="Fecha de la comida")
+    meal_time = models.TimeField(help_text="Hora de la comida")
+    
+    # Foto de la comida
+    photo = models.ImageField(upload_to='meal_photos/', help_text="Foto de la comida")
+    
+    # Descripción y notas
+    description = models.TextField(blank=True, help_text="Descripción de la comida")
+    notes = models.TextField(blank=True, help_text="Notas adicionales (ej: porciones, preparación)")
+    
+    # Información nutricional estimada (opcional)
+    estimated_calories = models.IntegerField(null=True, blank=True, help_text="Calorías estimadas")
+    
+    # Comentarios del nutricionista
+    nutritionist_comment = models.TextField(blank=True, help_text="Comentario del nutricionista")
+    reviewed_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='reviewed_meals',
+        limit_choices_to={'role': 'nutricionista'}
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True, help_text="Fecha de revisión")
+    
+    # Control de tiempo
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-meal_date', '-meal_time']
+        indexes = [
+            models.Index(fields=['patient', 'meal_date']),
+            models.Index(fields=['patient', 'created_at']),
+        ]
+    
+    @property
+    def is_reviewed(self):
+        """Verifica si la comida fue revisada por el nutricionista"""
+        return self.reviewed_by is not None
+    
+    def __str__(self):
+        return f"{self.get_meal_type_display()} - {self.patient.person.user.get_full_name()} - {self.meal_date.strftime('%d/%m/%Y')}"
