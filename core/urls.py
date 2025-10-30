@@ -9,6 +9,10 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
 
+    # Rutas públicas (sin autenticación)
+    path('api/public/agenda/', include('apps.agenda.public_urls')),
+    path('api/public/nutricionistas/', include('apps.user.public_urls')),
+
     # Auth (Djoser + JWT + Social)
     path('auth/', include('djoser.urls')),
     path('auth/', include('djoser.urls.jwt')),

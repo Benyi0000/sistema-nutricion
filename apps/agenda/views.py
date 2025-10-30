@@ -2,10 +2,12 @@ from django.shortcuts import render
 
 # Create your views here.
 # apps/agenda/views.py
-from datetime import timedelta
-from rest_framework import viewsets, permissions, serializers
+from datetime import timedelta, datetime
+from rest_framework import viewsets, permissions, serializers, generics
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.decorators import action
@@ -17,7 +19,9 @@ from .models import (
     BloqueoDisponibilidad,
     ProfessionalSettings,
     Turno,
-    TurnoState  # Agregar el enum
+    TurnoState,
+    MagicLinkToken,
+    MagicAction
 )
 from apps.user.models import UserAccount, Nutricionista, Paciente
 from .serializers import (
@@ -25,9 +29,14 @@ from .serializers import (
     TipoConsultaConfigSerializer, 
     DisponibilidadHorariaSerializer, 
     BloqueoDisponibilidadSerializer,
-    ProfessionalSettingsSerializer
+    ProfessionalSettingsSerializer,
+    PublicTurnoCreateSerializer, # Añadido
+    PublicTurnoVerifySerializer
 )
-from .permissions import IsNutriOwner # <-- Importamos nuestro permiso personalizado
+from .permissions import IsNutriOwner
+
+from .utils import calculate_available_slots
+from apps.user.models import Nutricionista # <-- Importamos nuestra función utilitaria
 
 class NutriConfigBaseViewSet(viewsets.ModelViewSet):
     """
@@ -336,6 +345,22 @@ class TurnoViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated()]
         return super().get_permissions()
 
+    def get_serializer_context(self):
+        """Agregar nutricionista al contexto del serializer para validación de solapamiento."""
+        context = super().get_serializer_context()
+        
+        # Si es una creación, obtener el nutricionista del request
+        if self.action == 'create':
+            nutricionista_id = self.request.data.get('nutricionista')
+            if nutricionista_id:
+                try:
+                    nutricionista = Nutricionista.objects.get(id=nutricionista_id)
+                    context['nutricionista'] = nutricionista
+                except Nutricionista.DoesNotExist:
+                    pass
+        
+        return context
+
     @action(detail=False, methods=['get'], url_path='mis-turnos', permission_classes=[permissions.IsAuthenticated])
     def mis_turnos(self, request):
         """
@@ -487,11 +512,17 @@ class TurnoViewSet(viewsets.ModelViewSet):
 
 
         # **Validación CRÍTICA de solapamiento con buffers**
-        # 1. Verificar contra otros turnos TENTATIVOS o CONFIRMADOS (incluyendo sus buffers)
+        # 1. Verificar contra otros turnos activos (no cancelados) incluyendo sus buffers
+        from django.db.models import Q
+        
         turnos_existentes = Turno.objects.filter(
             nutricionista=nutricionista,
-            state__in=[TurnoState.TENTATIVO, TurnoState.CONFIRMADO],
             slot__overlap=slot_con_buffers  # Verificar contra el rango con buffers
+        ).exclude(
+            state=TurnoState.CANCELADO
+        ).filter(
+            Q(state__in=[TurnoState.RESERVADO, TurnoState.CONFIRMADO, TurnoState.ATENDIDO]) |
+            (Q(state=TurnoState.TENTATIVO) & Q(soft_hold_expires_at__gt=timezone.now()))
         )
         
         # Para cada turno existente, verificar considerando también SUS buffers
@@ -672,3 +703,167 @@ class TurnoViewSet(viewsets.ModelViewSet):
     #     return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
     # def partial_update(self, request, *args, **kwargs):
     #     return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+# --- NUEVAS VISTAS PÚBLICAS ---
+
+class PublicSlotsView(APIView):
+    """
+    Vista pública para obtener slots de disponibilidad (GET).
+    Utiliza la función 'calculate_available_slots' existente.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        # IDs requeridos como query params
+        nutricionista_id = request.query_params.get('nutricionista_id')
+        ubicacion_id = request.query_params.get('ubicacion_id')
+        tipo_consulta_id = request.query_params.get('tipo_consulta_id')
+        
+        # Fechas requeridas (ISO format date string: "YYYY-MM-DD")
+        fecha_inicio_str = request.query_params.get('start_date')
+        fecha_fin_str = request.query_params.get('end_date')
+
+        if not all([nutricionista_id, ubicacion_id, tipo_consulta_id, fecha_inicio_str, fecha_fin_str]):
+            return Response(
+                {"error": "Faltan parámetros requeridos: nutricionista_id, ubicacion_id, tipo_consulta_id, start_date, end_date."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # 1. Obtener la instancia del nutricionista
+            nutricionista = Nutricionista.objects.get(id=nutricionista_id)
+            
+            # 2. Convertir strings de fecha a objetos date
+            from datetime import datetime as dt
+            start_date = dt.fromisoformat(fecha_inicio_str).date()
+            end_date = dt.fromisoformat(fecha_fin_str).date()
+
+            # 3. Llamamos a la función de utils.py
+            slots = calculate_available_slots(
+                nutricionista=nutricionista,
+                start_date=start_date,
+                end_date=end_date,
+                ubicacion_id=ubicacion_id,
+                tipo_consulta_id=tipo_consulta_id
+                # duracion_minutos se calcula dentro del util
+            )
+            
+            # El util devuelve [{'inicio': dt, 'fin': dt}], lo cual es serializable
+            return Response(slots, status=status.HTTP_200_OK)
+            
+        except Nutricionista.DoesNotExist:
+            return Response({"error": "Nutricionista no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+        except (ValueError, TypeError):
+             return Response({"error": "Formato de fecha inválido. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # Loggear el error real en servidor
+            print(f"Error en PublicSlotsView: {str(e)}")
+            return Response({"error": "Ocurrió un error al calcular la disponibilidad."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PublicTurnoCreateView(generics.CreateAPIView):
+    """
+    Vista pública para CREAR un turno tentativo (POST).
+    """
+    queryset = Turno.objects.all()
+    serializer_class = PublicTurnoCreateSerializer
+    permission_classes = [AllowAny]
+
+    def perform_create(self, serializer):
+        # El serializador ya setea el estado TENTATIVO y el soft_hold_expires_at
+        turno = serializer.save()
+        
+        # Crear el MagicLinkToken usando el modelo existente
+        token_obj = MagicLinkToken.objects.create(
+            turno=turno,
+            action=MagicAction.CONFIRM,
+            expires_at=turno.soft_hold_expires_at # El token expira al mismo tiempo que el hold
+        )
+
+        # --- TAREA PENDIENTE ---
+        # TODO: Implementar el envío de email/SMS
+        # Enviar email a: turno.intake_answers['email']
+        # Con el token: token_obj.token (el UUID)
+        # --- FIN TAREA PENDIENTE ---
+        
+        print(f"DEBUG: Token creado para turno {turno.id}: {token_obj.token}")
+
+
+class PublicTurnoVerifyView(generics.GenericAPIView):
+    """
+    Vista pública para VERIFICAR y confirmar un turno tentativo (POST).
+    Recibe el token del MagicLink.
+    """
+    serializer_class = PublicTurnoVerifySerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # El serializador ya validó el token, lo usó y nos devuelve el turno
+        turno = serializer.validated_data.get('turno')
+        
+        # Actualizar el turno de 'TENTATIVO' a 'RESERVADO'
+        turno.state = TurnoState.RESERVADO 
+        turno.soft_hold_expires_at = None # Eliminar la expiración
+        turno.save(update_fields=['state', 'soft_hold_expires_at', 'updated_at'])
+
+        # --- TAREA PENDIENTE ---
+        # TODO: Implementar envío de emails de notificación
+        # 1. Email al paciente (turno.intake_answers['email'])
+        # 2. Email al nutricionista (turno.nutricionista.user.email)
+        # --- FIN TAREA PENDIENTE ---
+
+        # Devolvemos el turno completo
+        return Response(
+            TurnoSerializer(turno, context={'request': request}).data, 
+            status=status.HTTP_200_OK
+        )
+    
+
+# ──────────────────────────────────────────────────────────────────────
+# Vistas públicas adicionales (configuración del nutricionista)
+# ──────────────────────────────────────────────────────────────────────
+
+class PublicUbicacionesView(generics.ListAPIView):
+    """
+    GET /api/public/agenda/ubicaciones/?nutricionista=<id>
+    Lista las ubicaciones públicas de un nutricionista.
+    """
+    serializer_class = UbicacionSerializer
+    permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        nutricionista_id = self.request.query_params.get('nutricionista')
+        if not nutricionista_id:
+            return Ubicacion.objects.none()
+        
+        return Ubicacion.objects.filter(
+            nutricionista_id=nutricionista_id
+        ).order_by('nombre')
+
+
+class PublicTiposConsultaView(generics.ListAPIView):
+    """
+    GET /api/public/agenda/tipos-consulta/?nutricionista=<id>
+    Lista los tipos de consulta públicos de un nutricionista.
+    Solo devuelve tipos INICIAL para público.
+    """
+    serializer_class = TipoConsultaConfigSerializer
+    permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        nutricionista_id = self.request.query_params.get('nutricionista')
+        if not nutricionista_id:
+            return TipoConsultaConfig.objects.none()
+        
+        # Solo tipos INICIAL para público
+        return TipoConsultaConfig.objects.filter(
+            nutricionista_id=nutricionista_id,
+            tipo='INICIAL'
+        ).order_by('duracion_min')
+
+
+# --- FIN VISTAS PÚBLICAS ---

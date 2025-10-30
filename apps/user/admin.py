@@ -29,8 +29,19 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
 
-admin.site.register(Nutricionista)
-admin.site.register(Paciente)
+@admin.register(Nutricionista)
+class NutricionistaAdmin(admin.ModelAdmin):
+    list_display = ('user', 'nombre', 'apellido', 'matricula', 'telefono')
+    list_filter = ('especialidades',)
+    search_fields = ('user__dni', 'user__email', 'nombre', 'apellido', 'matricula')
+    filter_horizontal = ('especialidades',)
+
+@admin.register(Paciente)
+class PacienteAdmin(admin.ModelAdmin):
+    list_display = ('user', 'nombre', 'apellido', 'fecha_nacimiento', 'genero')
+    list_filter = ('genero',)
+    search_fields = ('user__dni', 'user__email', 'nombre', 'apellido')
+
 admin.site.register(AsignacionNutricionistaPaciente)
 admin.site.register(Especialidad)
 

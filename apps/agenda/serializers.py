@@ -1,8 +1,10 @@
 # apps/agenda/serializers.py
 from rest_framework import serializers
 from django.utils import timezone
-from .models import Ubicacion, TipoConsultaConfig, DisponibilidadHoraria, BloqueoDisponibilidad, ProfessionalSettings
+from .models import Ubicacion, TipoConsultaConfig, DisponibilidadHoraria, BloqueoDisponibilidad, ProfessionalSettings, Turno, TurnoState, MagicLinkToken,MagicAction
 from apps.user.models import Nutricionista
+from datetime import timedelta
+from psycopg.types.range import Range
 
 class UbicacionSerializer(serializers.ModelSerializer):
     """
@@ -197,6 +199,32 @@ class TurnoSerializer(serializers.ModelSerializer):
         if slot and slot.lower <= timezone.now() and not self.instance: # Solo al crear
              raise serializers.ValidationError("No se pueden solicitar turnos en el pasado.")
 
+        # Validar que no haya turnos ACTIVOS que se solapen (al crear)
+        if slot and not self.instance:
+            from django.db.models import Q
+            
+            # Obtener el nutricionista desde el contexto (será asignado en la vista)
+            nutricionista = self.context.get('nutricionista')
+            ubicacion = data.get('ubicacion')
+            
+            if nutricionista and ubicacion:
+                # Buscar turnos activos (no cancelados) que se solapen
+                overlapping_turnos = Turno.objects.filter(
+                    nutricionista=nutricionista,
+                    ubicacion=ubicacion,
+                    slot__overlap=slot
+                ).exclude(
+                    state=TurnoState.CANCELADO
+                ).filter(
+                    Q(state__in=[TurnoState.RESERVADO, TurnoState.CONFIRMADO, TurnoState.ATENDIDO]) |
+                    (Q(state=TurnoState.TENTATIVO) & Q(soft_hold_expires_at__gt=timezone.now()))
+                )
+                
+                if overlapping_turnos.exists():
+                    raise serializers.ValidationError(
+                        "Este horario ya no está disponible. Por favor seleccione otro horario."
+                    )
+
         return data
 
     # NOTA: La asignación de 'paciente' y 'nutricionista' se hará en la vista (perform_create).
@@ -263,3 +291,141 @@ class ProfessionalSettingsSerializer(serializers.ModelSerializer):
             data['anticipacion_maxima'] = timedelta(days=days)
         
         return super().to_internal_value(data)
+    
+
+class PublicTurnoCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializador para que usuarios anónimos creen un turno 'TENTATIVO'.
+    """
+    # Campos para capturar datos públicos
+    nombre_completo = serializers.CharField(write_only=True, required=True)
+    email = serializers.EmailField(write_only=True, required=True)
+    telefono = serializers.CharField(write_only=True, required=False, allow_blank=True, default='')
+
+    # IDs que el frontend debe enviar
+    nutricionista = serializers.PrimaryKeyRelatedField(queryset=Nutricionista.objects.all())
+    ubicacion = serializers.PrimaryKeyRelatedField(queryset=Ubicacion.objects.all())
+    tipo_consulta = serializers.PrimaryKeyRelatedField(queryset=TipoConsultaConfig.objects.all())
+
+    class Meta:
+        model = Turno
+        fields = [
+            'nutricionista', 
+            'ubicacion',
+            'tipo_consulta',
+            'start_time', 
+            'end_time', 
+            # Campos write_only
+            'nombre_completo',
+            'email',
+            'telefono',
+        ]
+        # 'slot' se genera en 'create', 'state' y 'soft_hold' también
+        read_only_fields = ['id', 'state', 'soft_hold_expires_at', 'slot', 'source']
+    
+    def validate(self, attrs):
+        # 1. Validar que los objetos pertenecen al nutricionista
+        nutri = attrs['nutricionista']
+        if attrs['ubicacion'].nutricionista != nutri:
+            raise serializers.ValidationError("La ubicación no pertenece al nutricionista.")
+        if attrs['tipo_consulta'].nutricionista != nutri:
+            raise serializers.ValidationError("El tipo de consulta no pertenece al nutricionista.")
+
+        # 2. Validar que el slot está en el futuro
+        if attrs['start_time'] < timezone.now():
+            raise serializers.ValidationError("No se puede reservar un turno en el pasado.")
+            
+        # 3. Verificar que no haya turnos ACTIVOS que se solapen
+        from psycopg.types.range import Range
+        from django.db.models import Q
+        
+        slot_range = Range(attrs['start_time'], attrs['end_time'], bounds='[)')
+        
+        # Buscar turnos activos (no cancelados) que se solapen
+        overlapping_turnos = Turno.objects.filter(
+            nutricionista=nutri,
+            ubicacion=attrs['ubicacion'],
+            slot__overlap=slot_range
+        ).exclude(
+            state=TurnoState.CANCELADO
+        ).filter(
+            Q(state__in=[TurnoState.RESERVADO, TurnoState.CONFIRMADO, TurnoState.ATENDIDO]) |
+            (Q(state=TurnoState.TENTATIVO) & Q(soft_hold_expires_at__gt=timezone.now()))
+        )
+        
+        if overlapping_turnos.exists():
+            raise serializers.ValidationError(
+                "Este horario ya no está disponible. Por favor seleccione otro horario."
+            )
+
+        return attrs
+
+    def create(self, validated_data):
+        # Extraer datos públicos
+        nombre = validated_data.pop('nombre_completo')
+        email = validated_data.pop('email')
+        telefono = validated_data.pop('telefono')
+
+        # Preparar datos para el modelo Turno
+        validated_data['intake_answers'] = {
+            'nombre_completo': nombre,
+            'email': email,
+            'telefono': telefono
+        }
+        
+        # Marcar como TENTATIVO y asignar expiración (ej. 10 min)
+        validated_data['state'] = TurnoState.TENTATIVO
+        validated_data['soft_hold_expires_at'] = timezone.now() + timedelta(minutes=10)
+        
+        # Settear campos obligatorios
+        validated_data['paciente'] = None 
+        validated_data['source'] = 'publico'
+        validated_data['canal'] = validated_data['tipo_consulta'].canal_por_defecto
+        
+        # Crear el campo de rango 'slot' (requerido por el save del modelo)
+        validated_data['slot'] = Range(
+            validated_data['start_time'], 
+            validated_data['end_time'], 
+            bounds='[)'
+        )
+        
+        # Guardar precio snapshot (del TipoConsultaConfig)
+        validated_data['precio_cobrado'] = validated_data['tipo_consulta'].precio
+
+        return super().create(validated_data)
+
+
+class PublicTurnoVerifySerializer(serializers.Serializer):
+    """
+    Serializador para validar un token (MagicLinkToken) de turno público.
+    """
+    token = serializers.UUIDField(required=True, write_only=True)
+
+    def validate(self, attrs):
+        token_uuid = attrs.get('token')
+        now = timezone.now()
+
+        try:
+            # Usamos el MagicLinkToken existente (definido en models.py de step_7)
+            token_obj = MagicLinkToken.objects.select_related('turno').get(
+                token=token_uuid,
+                action=MagicAction.CONFIRM, # Acción de confirmar
+                used_at__isnull=True,     # Que no haya sido usado
+                expires_at__gt=now,       # Que no haya expirado
+                turno__isnull=False,      # Que esté asociado a un turno
+                turno__state=TurnoState.TENTATIVO # Y el turno esté TENTATIVO
+            )
+        except MagicLinkToken.DoesNotExist:
+            raise serializers.ValidationError("Token inválido o expirado.")
+
+        # Verificar también el soft_hold del turno (doble chequeo)
+        if token_obj.turno.soft_hold_expires_at < now:
+            raise serializers.ValidationError("La reserva ha expirado. Por favor, intente de nuevo.")
+
+        # El token es válido, lo marcamos como usado
+        token_obj.used_at = now
+        token_obj.save(update_fields=['used_at'])
+
+        # Adjuntamos el turno para la vista
+        attrs['turno'] = token_obj.turno
+        return attrs

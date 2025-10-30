@@ -2,6 +2,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import rootReducer from '../redux/reducers'; // Mantenemos tus reducers existentes
 import { agendaApiSlice } from '../features/agenda/agendaApiSlice'; // Importamos la API Slice
+import { publicAgendaApiSlice } from '../features/agenda/publicAgendaApiSlice'; // API pública
 
 export const store = configureStore({
   reducer: {
@@ -19,11 +20,14 @@ export const store = configureStore({
 
     // Añade el reducer de la API Slice. Usa el reducerPath que definiste.
     [agendaApiSlice.reducerPath]: agendaApiSlice.reducer,
+    [publicAgendaApiSlice.reducerPath]: publicAgendaApiSlice.reducer,
   },
   // El middleware de RTK Query se añade automáticamente aquí.
   // configureStore incluye redux-thunk y Redux DevTools Extension por defecto.
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(agendaApiSlice.middleware),
+    getDefaultMiddleware()
+      .concat(agendaApiSlice.middleware)
+      .concat(publicAgendaApiSlice.middleware),
   // Habilita Redux DevTools solo en desarrollo (esto es automático con configureStore)
   devTools: import.meta.env.DEV,
 });

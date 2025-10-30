@@ -37,6 +37,12 @@ import PlanesPage from './containers/pages/paciente/PlanesPage';
 import SeguimientoPage from './containers/pages/paciente/SeguimientoPage';
 import ConfiguracionPacientePage from './containers/pages/paciente/ConfiguracionPage';
 
+// --- Páginas PÚBLICAS Turnero ---
+import TurneroPublico from './containers/pages/public/TurneroPublico';
+import ConfirmarTurno from './containers/pages/public/ConfirmarTurno';
+import ListaNutricionistasPublica from './containers/pages/public/ListaNutricionistasPublica';
+import LandingNutricionista from './containers/pages/public/LandingNutricionista';
+
 // --- Rutas Protegidas HOCs ---
 import AdminRoute from './hocs/routes/AdminRoute';
 import NutriRoute from './hocs/routes/NutriRoute';
@@ -57,6 +63,12 @@ export default function AppRoutes() {
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/cambiar-clave" element={<ChangePassword />} />
+            
+            {/* ¡RUTAS PÚBLICAS TURNERO! */}
+            <Route path="/nutricionistas-disponibles" element={<ListaNutricionistasPublica />} />
+            <Route path="/nutricionista/:nutricionistaId" element={<LandingNutricionista />} />
+            <Route path="/nutricionista/:nutricionistaId/turno" element={<TurneroPublico />} />
+            <Route path="/confirmar-turno" element={<ConfirmarTurno />} />
 
             {/* --- Panel Admin --- */}
             <Route

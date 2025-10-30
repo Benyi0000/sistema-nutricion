@@ -289,6 +289,37 @@ class NutricionistaListSerializer(serializers.ModelSerializer):
         return [e.nombre for e in obj.especialidades.all()]
 
 
+# Serializer para vista pública de nutricionistas
+class NutricionistaPublicSerializer(serializers.ModelSerializer):
+    """
+    Serializer para vista pública de nutricionistas.
+    Solo muestra información necesaria para el turnero público.
+    """
+    full_name = serializers.SerializerMethodField()
+    especialidades = serializers.SerializerMethodField()
+    ubicaciones_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Nutricionista
+        fields = (
+            'id', 'nombre', 'apellido', 'full_name',
+            'foto_perfil', 'especialidades', 
+            'ubicaciones_count', 'telefono'
+        )
+        read_only_fields = fields
+    
+    def get_full_name(self, obj):
+        return f"Lic. {obj.nombre} {obj.apellido}"
+    
+    def get_especialidades(self, obj):
+        return [e.nombre for e in obj.especialidades.all()]
+    
+    def get_ubicaciones_count(self, obj):
+        # Contar ubicaciones del nutricionista
+        from apps.agenda.models import Ubicacion
+        return Ubicacion.objects.filter(nutricionista=obj).count()
+
+
 # ---------------------------------------------------------------------
 # Utilidades
 # ---------------------------------------------------------------------

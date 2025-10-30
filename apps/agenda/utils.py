@@ -3,6 +3,8 @@ import datetime
 from django.utils import timezone
 from psycopg.types.range import Range
 from .models import DisponibilidadHoraria, BloqueoDisponibilidad, Turno, TipoConsultaConfig, ProfessionalSettings, TurnoState
+from django.db.models import Q
+
 
 def calculate_available_slots(nutricionista, start_date, end_date, duracion_minutos=None, ubicacion_id=None, tipo_consulta_id=None):
     """
@@ -141,10 +143,19 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
         
         bloqueos = bloqueos_query
 
+        now = timezone.now()
         turnos_ocupados = Turno.objects.filter(
             nutricionista=nutricionista,
-            state__in=[TurnoState.TENTATIVO, TurnoState.RESERVADO, TurnoState.CONFIRMADO],  # Estados que ocupan el slot
             slot__overlap=Range(day_start, day_end, bounds='[)')
+        ).filter(
+            # Ocupan slot si están RESERVADOS, CONFIRMADOS o ATENDIDOS
+            Q(state__in=[
+                TurnoState.RESERVADO, 
+                TurnoState.CONFIRMADO, 
+                TurnoState.ATENDIDO
+            ]) |
+            # O si están TENTATIVOS y su soft_hold AÚN NO HA EXPIRADO
+            (Q(state=TurnoState.TENTATIVO) & Q(soft_hold_expires_at__gt=now))
         )
 
         # Convertir bloqueos y turnos a rangos para fácil comparación
@@ -190,6 +201,9 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
                 if potential_total_range.lower < occupied.upper and potential_total_range.upper > occupied.lower:
                    is_occupied = True
                    break
+            if potential_slot_data['slot'].lower < now:
+                is_occupied = True
+
             if not is_occupied:
                 # Retornar solo el slot de consulta (sin buffers visibles)
                 potential_slot = potential_slot_data['slot']
@@ -201,7 +215,17 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
         # Avanzar al siguiente día
         current_date += datetime.timedelta(days=1)
 
+
+
     # Ordenar los slots por fecha y hora de inicio
     available_slots.sort(key=lambda x: x['inicio'])
 
-    return available_slots
+
+    final_slots = []
+    slot_starts = set()
+    for slot in available_slots:
+        if slot['inicio'] not in slot_starts:
+            final_slots.append(slot)
+            slot_starts.add(slot['inicio'])
+
+    return final_slots

@@ -695,3 +695,60 @@ class PlantillaPreguntaViewSet(viewsets.ModelViewSet):
         
         instance.delete()
 
+
+# ──────────────────────────────────────────────────────────────────────
+# Vistas públicas (turnero público)
+# ──────────────────────────────────────────────────────────────────────
+
+from rest_framework.permissions import AllowAny
+from .serializers import NutricionistaPublicSerializer
+
+
+class NutricionistasPublicosListView(generics.ListAPIView):
+    """
+    GET /api/nutricionistas/publicos/
+    Lista todos los nutricionistas que tienen turnero público habilitado.
+    No requiere autenticación.
+    """
+    serializer_class = NutricionistaPublicSerializer
+    permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        # Obtener nutricionistas activos con sus configuraciones
+        from apps.agenda.models import ProfessionalSettings
+        
+        # Obtener IDs de nutricionistas con booking público habilitado
+        settings_ids = ProfessionalSettings.objects.filter(
+            booking_mode='PUBLICO'
+        ).values_list('nutricionista_id', flat=True)
+        
+        return Nutricionista.objects.filter(
+            id__in=settings_ids,
+            user__is_active=True
+        ).prefetch_related('especialidades').order_by('apellido', 'nombre')
+
+
+class NutricionistaPublicDetailView(generics.RetrieveAPIView):
+    """
+    GET /api/nutricionistas/<id>/publico/
+    Obtiene la información pública de un nutricionista específico.
+    No requiere autenticación.
+    """
+    serializer_class = NutricionistaPublicSerializer
+    permission_classes = [AllowAny]
+    queryset = Nutricionista.objects.all()
+    lookup_field = 'id'
+    
+    def get_queryset(self):
+        # Verificar que el nutricionista tenga booking público habilitado
+        from apps.agenda.models import ProfessionalSettings
+        
+        settings_ids = ProfessionalSettings.objects.filter(
+            booking_mode='PUBLICO'
+        ).values_list('nutricionista_id', flat=True)
+        
+        return Nutricionista.objects.filter(
+            id__in=settings_ids,
+            user__is_active=True
+        ).prefetch_related('especialidades')
+

@@ -7,6 +7,7 @@ import preguntasReducer, { preguntasApi } from '../features/preguntas/preguntasS
 import consultasReducer from '../features/consultas/consultasSlice';
 import nutriReducer from "../features/nutri/nutriSlice";
 import { agendaApiSlice } from '../features/agenda/agendaApiSlice'; 
+import { publicAgendaApiSlice } from '../features/agenda/publicAgendaApiSlice';
 import { plantillasApi } from '../features/plantillas/plantillasSlice';
 
 const rootReducer = combineReducers({
@@ -18,6 +19,7 @@ const rootReducer = combineReducers({
   consultas: consultasReducer,
   nutri: nutriReducer,
   [agendaApiSlice.reducerPath]: agendaApiSlice.reducer,
+  [publicAgendaApiSlice.reducerPath]: publicAgendaApiSlice.reducer,
   [plantillasApi.reducerPath]: plantillasApi.reducer,
   [preguntasApi.reducerPath]: preguntasApi.reducer,
 });
@@ -27,6 +29,7 @@ const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware()
       .concat(agendaApiSlice.middleware)
+      .concat(publicAgendaApiSlice.middleware)
       .concat(plantillasApi.middleware)
       .concat(preguntasApi.middleware),
 });
