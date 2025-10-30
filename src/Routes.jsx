@@ -50,6 +50,8 @@ import PacienteRoute from './hocs/routes/PacienteRoute';
 import PlantillasPage from './containers/pages/nutricionista/PlantillasPage';
 import PlantillaFormPage from './containers/pages/nutricionista/PlantillaFormPage';
 import PlantillaDetailPage from './containers/pages/nutricionista/PlantillaDetailPage';
+import PreguntasPage from './containers/pages/nutricionista/PreguntasPage';
+import PreguntaFormPage from './containers/pages/nutricionista/PreguntaFormPage';
 
 // --- Placeholders simples (si aún no hiciste estas páginas) ---
 const ConsultasIndex = () => <div className="text-gray-700 p-4">Consultas — elige "Inicial" o "Seguimiento"</div>;
@@ -94,7 +96,9 @@ export default function AppRoutes() {
                 <Route path="consultas" element={<ConsultasIndex />} />
                 <Route path="consultas/inicial" element={<ConsultaInicial />} />
                 <Route path="seguimientos/:pacienteId" element={<SeguimientoCrear />} />
-                <Route path="preguntas" element={<BancoPreguntas />} />
+                <Route path="preguntas" element={<PreguntasPage />} />
+                <Route path="preguntas/crear" element={<PreguntaFormPage />} />
+                <Route path="preguntas/:id/editar" element={<PreguntaFormPage />} />
                 <Route path="plantillas" element={<PlantillasPage />} />
                 <Route path="plantillas/crear" element={<PlantillaFormPage />} />
                 <Route path="plantillas/:id" element={<PlantillaDetailPage />} />

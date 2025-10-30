@@ -277,6 +277,9 @@ from .serializers import (
 
 class PreguntaPersonalizadaViewSet(mixins.CreateModelMixin,
                                      mixins.ListModelMixin,
+                                     mixins.RetrieveModelMixin,
+                                     mixins.UpdateModelMixin,
+                                     mixins.DestroyModelMixin,
                                      viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
