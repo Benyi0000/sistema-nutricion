@@ -39,6 +39,13 @@ const PlantillaFormPage = () => {
 
   const [preguntasSeleccionadas, setPreguntasSeleccionadas] = useState([]);
   const [errors, setErrors] = useState({});
+  const [categorias, setCategorias] = useState([]);
+  const [showCategoriaForm, setShowCategoriaForm] = useState(false);
+  const [newCategoriaName, setNewCategoriaName] = useState('');
+  const [categoriaFormError, setCategoriaFormError] = useState('');
+  const [editingCategoriaId, setEditingCategoriaId] = useState(null);
+  const [editingCategoriaName, setEditingCategoriaName] = useState('');
+  const [editingCategoriaError, setEditingCategoriaError] = useState('');
 
   // Estados para el modal de nueva pregunta
   const [showModalNuevaPregunta, setShowModalNuevaPregunta] = useState(false);
@@ -74,6 +81,7 @@ const PlantillaFormPage = () => {
             requerido_en_plantilla: pc.requerido_en_plantilla,
             visible: pc.visible,
             config: pc.config || {},
+            categoriaId: null,
           }))
         );
       }
@@ -102,6 +110,7 @@ const PlantillaFormPage = () => {
         requerido_en_plantilla: pregunta.requerido,
         visible: true,
         config: {},
+        categoriaId: null,
       },
     ]);
   };
@@ -120,16 +129,126 @@ const PlantillaFormPage = () => {
     );
   };
 
+  const handleChangeCategoriaPregunta = (preguntaId, nuevaCategoriaId) => {
+    setPreguntasSeleccionadas((prev) =>
+      prev.map((p) =>
+        p.pregunta_id === preguntaId
+          ? { ...p, categoriaId: nuevaCategoriaId === 'root' ? null : nuevaCategoriaId }
+          : p
+      )
+    );
+  };
+
+  const handleAddCategoria = () => {
+    setShowCategoriaForm(true);
+    setCategoriaFormError('');
+    setNewCategoriaName('');
+  };
+
+  const handleSaveCategoria = () => {
+    const trimmed = newCategoriaName.trim();
+    if (!trimmed) {
+      setCategoriaFormError('El nombre es obligatorio.');
+      return;
+    }
+
+    if (categorias.some((cat) => cat.nombre.toLowerCase() === trimmed.toLowerCase())) {
+      setCategoriaFormError('Ya existe una categoría con ese nombre.');
+      return;
+    }
+
+    setCategorias((prev) => [
+      ...prev,
+      {
+        id: `cat-${Date.now()}`,
+        nombre: trimmed,
+      },
+    ]);
+    setNewCategoriaName('');
+    setShowCategoriaForm(false);
+  };
+
+  const handleCancelCategoria = () => {
+    setShowCategoriaForm(false);
+    setNewCategoriaName('');
+    setCategoriaFormError('');
+  };
+
+  const handleRemoveCategoria = (categoriaId) => {
+    if (editingCategoriaId === categoriaId) {
+      setEditingCategoriaId(null);
+      setEditingCategoriaName('');
+      setEditingCategoriaError('');
+    }
+    setCategorias((prev) => prev.filter((cat) => cat.id !== categoriaId));
+    setPreguntasSeleccionadas((prev) =>
+      prev.map((item) =>
+        item.categoriaId === categoriaId
+          ? { ...item, categoriaId: null }
+          : item
+      )
+    );
+  };
+
+  const handleStartEditCategoria = (categoria) => {
+    setEditingCategoriaId(categoria.id);
+    setEditingCategoriaName(categoria.nombre);
+    setEditingCategoriaError('');
+  };
+
+  const handleCancelEditCategoria = () => {
+    setEditingCategoriaId(null);
+    setEditingCategoriaName('');
+    setEditingCategoriaError('');
+  };
+
+  const handleSaveEditCategoria = (categoriaId) => {
+    const trimmed = editingCategoriaName.trim();
+
+    if (!trimmed) {
+      setEditingCategoriaError('El nombre es obligatorio.');
+      return;
+    }
+
+    if (
+      categorias.some(
+        (cat) =>
+          cat.id !== categoriaId && cat.nombre.toLowerCase() === trimmed.toLowerCase()
+      )
+    ) {
+      setEditingCategoriaError('Ya existe una categoría con ese nombre.');
+      return;
+    }
+
+    setCategorias((prev) =>
+      prev.map((cat) => (cat.id === categoriaId ? { ...cat, nombre: trimmed } : cat))
+    );
+    setEditingCategoriaId(null);
+    setEditingCategoriaName('');
+    setEditingCategoriaError('');
+  };
+
   const handleDragEnd = (result) => {
     if (!result.destination) return;
+    const rootPreguntas = preguntasSeleccionadas.filter((item) => !item.categoriaId);
+    const rootIds = rootPreguntas.map((item) => item.pregunta_id);
 
-    const items = Array.from(preguntasSeleccionadas);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
+    const sourceId = rootIds[result.source.index];
+    const destId = rootIds[result.destination.index] || null;
 
-    // Actualizar orden
-    const reordered = items.map((item, index) => ({ ...item, orden: index }));
-    setPreguntasSeleccionadas(reordered);
+    setPreguntasSeleccionadas((prev) => {
+      const items = [...prev];
+      const sourceIdx = items.findIndex((item) => item.pregunta_id === sourceId);
+      if (sourceIdx === -1) return prev;
+
+      const [moved] = items.splice(sourceIdx, 1);
+
+      let destIdx = items.findIndex((item) => item.pregunta_id === destId);
+      if (destIdx === -1) destIdx = items.length;
+
+      items.splice(destIdx, 0, moved);
+      return items.map((item, index) => ({ ...item, orden: index }));
+    });
   };
 
   // Funciones para el modal de nueva pregunta
@@ -456,6 +575,89 @@ const PlantillaFormPage = () => {
     document.body
   );
 
+  const renderPreguntaCard = (item, index, showCategoriaSelect = true, dragHandleProps) => (
+    <div className="flex items-start gap-3">
+      <div
+        {...dragHandleProps}
+        className={`mt-1 ${dragHandleProps ? 'cursor-move text-gray-400 hover:text-gray-600' : ''}`}
+      >
+        {dragHandleProps && (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+          </svg>
+        )}
+      </div>
+
+      <div className="flex-1">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-900">
+              {index + 1}. {item.pregunta.texto}
+            </p>
+            <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+              <span className="px-2 py-0.5 bg-gray-200 rounded">
+                {item.pregunta.tipo}
+              </span>
+              {item.pregunta.unidad && (
+                <span>Unidad: {item.pregunta.unidad}</span>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleRemovePregunta(item.pregunta_id)}
+            className="ml-2 text-red-600 hover:text-red-800"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-4">
+          <label className="flex items-center text-sm">
+            <input
+              type="checkbox"
+              checked={item.requerido_en_plantilla}
+              onChange={() =>
+                handleTogglePreguntaConfig(item.pregunta_id, 'requerido_en_plantilla')
+              }
+              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+            />
+            <span className="ml-2 text-gray-700">Requerida</span>
+          </label>
+          <label className="flex items-center text-sm">
+            <input
+              type="checkbox"
+              checked={item.visible}
+              onChange={() => handleTogglePreguntaConfig(item.pregunta_id, 'visible')}
+              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+            />
+            <span className="ml-2 text-gray-700">Visible</span>
+          </label>
+          {showCategoriaSelect && (
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600">Categoría:</span>
+              <select
+                value={item.categoriaId || 'root'}
+                onChange={(e) => handleChangeCategoriaPregunta(item.pregunta_id, e.target.value)}
+                className="border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="root">Sin categoría</option>
+                {categorias.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
@@ -642,7 +844,137 @@ const PlantillaFormPage = () => {
                 Preguntas en la Plantilla ({preguntasSeleccionadas.length})
               </h2>
 
-              {preguntasSeleccionadas.length === 0 ? (
+              <div className="flex justify-end mb-4">
+                <button
+                  type="button"
+                  onClick={handleAddCategoria}
+                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  Agregar categoría
+                </button>
+              </div>
+
+              {showCategoriaForm && (
+                <div className="mb-4 bg-indigo-50 border border-indigo-100 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-indigo-700 mb-2">Nueva categoría</h3>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <input
+                      type="text"
+                      value={newCategoriaName}
+                      onChange={(e) => setNewCategoriaName(e.target.value)}
+                      className={`flex-1 rounded-md border shadow-sm focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 text-sm ${categoriaFormError ? 'border-red-300' : 'border-indigo-200'}`}
+                      placeholder="Ej: Hábitos alimentarios"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveCategoria}
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
+                      >
+                        Guardar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelCategoria}
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 rounded-md"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                  {categoriaFormError && (
+                    <p className="mt-2 text-xs text-red-600">{categoriaFormError}</p>
+                  )}
+                </div>
+              )}
+
+              {categorias.length > 0 && (
+                <div className="space-y-4 mb-6">
+                  {categorias.map((cat) => {
+                    const preguntasDeCategoria = preguntasSeleccionadas.filter(
+                      (item) => item.categoriaId === cat.id
+                    );
+                    return (
+                      <div key={cat.id} className="border border-indigo-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          {editingCategoriaId === cat.id ? (
+                            <div className="flex-1 mr-3">
+                              <input
+                                type="text"
+                                value={editingCategoriaName}
+                                onChange={(e) => setEditingCategoriaName(e.target.value)}
+                                className={`w-full rounded-md border shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm px-2 py-1 ${
+                                  editingCategoriaError ? 'border-red-300' : 'border-indigo-200'
+                                }`}
+                              />
+                              {editingCategoriaError && (
+                                <p className="mt-1 text-xs text-red-600">{editingCategoriaError}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <h3 className="flex-1 text-base font-semibold text-indigo-700 mr-3">
+                              {cat.nombre}
+                            </h3>
+                          )}
+                          <div className="flex items-center gap-2">
+                            {editingCategoriaId === cat.id ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveEditCategoria(cat.id)}
+                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
+                                >
+                                  Guardar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditCategoria}
+                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-md"
+                                >
+                                  Cancelar
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditCategoria(cat)}
+                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 hover:bg-indigo-200 rounded-md"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCategoria(cat.id)}
+                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md"
+                                >
+                                  Eliminar
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {preguntasDeCategoria.length === 0 ? (
+                          <p className="text-sm text-gray-500">
+                            Aún no hay preguntas en esta categoría.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {preguntasDeCategoria.map((item, index) => (
+                              <div key={item.pregunta_id} className="bg-gray-50 border rounded-lg p-4">
+                                {renderPreguntaCard(item, index, false)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {preguntasSeleccionadas.length === 0 && categorias.length === 0 ? (
                 <div className="text-center py-12">
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -652,102 +984,34 @@ const PlantillaFormPage = () => {
                     Selecciona preguntas del banco para agregarlas a la plantilla
                   </p>
                 </div>
-              ) : (
+              ) : preguntasSeleccionadas.length > 0 ? (
                 <DragDropContext onDragEnd={handleDragEnd}>
                   <Droppable droppableId="preguntas">
                     {(provided) => (
                       <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                        {preguntasSeleccionadas.map((item, index) => (
-                          <Draggable
-                            key={item.pregunta_id}
-                            draggableId={String(item.pregunta_id)}
-                            index={index}
-                          >
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                className={`bg-gray-50 border rounded-lg p-4 ${
-                                  snapshot.isDragging ? 'shadow-lg' : ''
-                                }`}
-                              >
-                                <div className="flex items-start gap-3">
-                                  {/* Drag Handle */}
-                                  <div
-                                    {...provided.dragHandleProps}
-                                    className="mt-1 cursor-move text-gray-400 hover:text-gray-600"
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                                    </svg>
-                                  </div>
-
-                                  {/* Contenido */}
-                                  <div className="flex-1">
-                                    <div className="flex items-start justify-between">
-                                      <div className="flex-1">
-                                        <p className="text-sm font-medium text-gray-900">
-                                          {index + 1}. {item.pregunta.texto}
-                                        </p>
-                                        <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-                                          <span className="px-2 py-0.5 bg-gray-200 rounded">
-                                            {item.pregunta.tipo}
-                                          </span>
-                                          {item.pregunta.unidad && (
-                                            <span>Unidad: {item.pregunta.unidad}</span>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      {/* Botón eliminar */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRemovePregunta(item.pregunta_id)}
-                                        className="ml-2 text-red-600 hover:text-red-800"
-                                      >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                      </button>
-                                    </div>
-
-                                    {/* Checkboxes de configuración */}
-                                    <div className="mt-3 flex items-center gap-4">
-                                      <label className="flex items-center text-sm">
-                                        <input
-                                          type="checkbox"
-                                          checked={item.requerido_en_plantilla}
-                                          onChange={() =>
-                                            handleTogglePreguntaConfig(item.pregunta_id, 'requerido_en_plantilla')
-                                          }
-                                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                                        />
-                                        <span className="ml-2 text-gray-700">Requerida</span>
-                                      </label>
-                                      <label className="flex items-center text-sm">
-                                        <input
-                                          type="checkbox"
-                                          checked={item.visible}
-                                          onChange={() =>
-                                            handleTogglePreguntaConfig(item.pregunta_id, 'visible')
-                                          }
-                                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                                        />
-                                        <span className="ml-2 text-gray-700">Visible</span>
-                                      </label>
-                                    </div>
-                                  </div>
+                        {preguntasSeleccionadas
+                          .filter((item) => !item.categoriaId)
+                          .map((item, index) => (
+                            <Draggable key={item.pregunta_id} draggableId={String(item.pregunta_id)} index={index}>
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  className={`bg-gray-50 border rounded-lg p-4 ${
+                                    snapshot.isDragging ? 'shadow-lg' : ''
+                                  }`}
+                                >
+                                  {renderPreguntaCard(item, index, true, provided.dragHandleProps)}
                                 </div>
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
+                              )}
+                            </Draggable>
+                          ))}
                         {provided.placeholder}
                       </div>
                     )}
                   </Droppable>
                 </DragDropContext>
-              )}
+              ) : null}
             </div>
 
             {/* Banco de Preguntas */}
