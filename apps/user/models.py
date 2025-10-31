@@ -161,6 +161,39 @@ class Nutricionista(models.Model):
     especialidades = models.ManyToManyField(Especialidad, blank=True)
     telefono = models.CharField(max_length=20, blank=True, null=True)
     foto_perfil = models.ImageField(upload_to="perfil/", null=True, blank=True)
+    
+    # Configuración de email personalizado para el nutricionista
+    email_host = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True,
+        help_text="Servidor SMTP (ej: smtp.gmail.com)"
+    )
+    email_port = models.IntegerField(
+        blank=True, 
+        null=True, 
+        default=587,
+        help_text="Puerto SMTP (587 para TLS, 465 para SSL)"
+    )
+    email_username = models.EmailField(
+        blank=True, 
+        null=True,
+        help_text="Email desde el cual enviar (ej: nutricionista@gmail.com)"
+    )
+    email_password = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True,
+        help_text="Contraseña de aplicación o contraseña del email"
+    )
+    email_use_tls = models.BooleanField(
+        default=True,
+        help_text="Usar TLS para conexión segura"
+    )
+    email_use_ssl = models.BooleanField(
+        default=False,
+        help_text="Usar SSL para conexión segura (incompatible con TLS)"
+    )
 
     class Meta:
         verbose_name = "nutricionista"
@@ -175,6 +208,29 @@ class Nutricionista(models.Model):
     @property
     def full_name(self):
         return f"{self.nombre} {self.apellido}".strip()
+    
+    def has_custom_email(self):
+        """Retorna True si el nutricionista tiene configurado un email personalizado"""
+        return bool(
+            self.email_host and 
+            self.email_port and 
+            self.email_username and 
+            self.email_password
+        )
+    
+    def get_email_config(self):
+        """Retorna la configuración de email del nutricionista"""
+        if not self.has_custom_email():
+            return None
+        return {
+            'EMAIL_HOST': self.email_host,
+            'EMAIL_PORT': self.email_port,
+            'EMAIL_HOST_USER': self.email_username,
+            'EMAIL_HOST_PASSWORD': self.email_password,
+            'EMAIL_USE_TLS': self.email_use_tls,
+            'EMAIL_USE_SSL': self.email_use_ssl,
+            'DEFAULT_FROM_EMAIL': self.email_username,
+        }
     
     def clean(self):
         """Validar que el usuario no tenga perfil de Paciente"""

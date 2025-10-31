@@ -21,7 +21,9 @@ from .models import (
     Turno,
     TurnoState,
     MagicLinkToken,
-    MagicAction
+    MagicAction,
+    NotificationLog, 
+    NotificationChannel
 )
 from apps.user.models import UserAccount, Nutricionista, Paciente
 from .serializers import (
@@ -36,6 +38,9 @@ from .serializers import (
 from .permissions import IsNutriOwner
 
 from .utils import calculate_available_slots
+
+from .tasks import send_notification_email
+
 from apps.user.models import Nutricionista # <-- Importamos nuestra función utilitaria
 
 class NutriConfigBaseViewSet(viewsets.ModelViewSet):
@@ -411,10 +416,22 @@ class TurnoViewSet(viewsets.ModelViewSet):
         turnos_data = []
         for turno in queryset:
             data = TurnoSerializer(turno).data
+            
             # Agregar información adicional del paciente
             if turno.paciente:
+                # Paciente registrado en el sistema
                 data['paciente_nombre'] = turno.paciente.nombre
                 data['paciente_apellido'] = turno.paciente.apellido
+            elif turno.intake_answers:
+                # Paciente público (desde turnero público)
+                nombre_completo = turno.intake_answers.get('nombre_completo', '')
+                # Intentar separar nombre y apellido
+                partes = nombre_completo.split(' ', 1)
+                data['paciente_nombre'] = partes[0] if len(partes) > 0 else ''
+                data['paciente_apellido'] = partes[1] if len(partes) > 1 else ''
+                # También agregar el email y teléfono del paciente público
+                data['paciente_email'] = turno.intake_answers.get('email', '')
+                data['paciente_telefono'] = turno.intake_answers.get('telefono', '')
             
             # Agregar nombre de ubicación y tipo de consulta
             if turno.ubicacion:
@@ -576,11 +593,23 @@ class TurnoViewSet(viewsets.ModelViewSet):
 
 
         # Si pasa todas las validaciones, guardar con datos automáticos
-        serializer.save(
-            paciente=paciente,
-            nutricionista=nutricionista,
-            state=TurnoState.TENTATIVO # Estado inicial
-        )
+        from django.db import IntegrityError
+        
+        try:
+            serializer.save(
+                paciente=paciente,
+                nutricionista=nutricionista,
+                state=TurnoState.TENTATIVO # Estado inicial
+            )
+        except IntegrityError as e:
+            # Si la constraint de exclusión falla, significa que otro usuario 
+            # reservó este slot justo antes (condición de carrera)
+            if 'no_overlap_por_prof_y_ubic' in str(e):
+                raise serializers.ValidationError(
+                    "Este horario acaba de ser reservado por otro usuario. Por favor, seleccione otro horario disponible."
+                )
+            # Si es otro tipo de IntegrityError, re-lanzar
+            raise
 
     # Acción para que el Nutricionista apruebe un turno
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsNutriOwner])
@@ -770,9 +799,27 @@ class PublicTurnoCreateView(generics.CreateAPIView):
     serializer_class = PublicTurnoCreateSerializer
     permission_classes = [AllowAny]
 
+    def create(self, request, *args, **kwargs):
+        # DEBUG: Imprimir los datos recibidos
+        print(f"DEBUG PublicTurnoCreateView - Request data: {request.data}")
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
-        # El serializador ya setea el estado TENTATIVO y el soft_hold_expires_at
-        turno = serializer.save()
+        from django.db import IntegrityError
+        from rest_framework.exceptions import ValidationError
+        
+        try:
+            # El serializador ya setea el estado TENTATIVO y el soft_hold_expires_at
+            turno = serializer.save()
+        except IntegrityError as e:
+            # Si la constraint de exclusión falla, significa que otro usuario 
+            # reservó este slot justo antes (condición de carrera)
+            if 'no_overlap_por_prof_y_ubic' in str(e):
+                raise ValidationError({
+                    "detail": "Este horario acaba de ser reservado por otro usuario. Por favor, seleccione otro horario disponible."
+                })
+            # Si es otro tipo de IntegrityError, re-lanzar
+            raise
         
         # Crear el MagicLinkToken usando el modelo existente
         token_obj = MagicLinkToken.objects.create(
@@ -781,11 +828,33 @@ class PublicTurnoCreateView(generics.CreateAPIView):
             expires_at=turno.soft_hold_expires_at # El token expira al mismo tiempo que el hold
         )
 
-        # --- TAREA PENDIENTE ---
-        # TODO: Implementar el envío de email/SMS
-        # Enviar email a: turno.intake_answers['email']
-        # Con el token: token_obj.token (el UUID)
-        # --- FIN TAREA PENDIENTE ---
+        # 1. Obtener datos para el email
+        email_paciente = turno.intake_answers.get('email')
+        nombre_paciente = turno.intake_answers.get('nombre_completo', 'futuro paciente')
+        
+        # 2. Construir la URL de verificación
+        # Trazabilidad: Usamos la ruta de React 'src/Routes.jsx'
+        # y el setting 'CSRF_TRUSTED_ORIGINS' de 'core/settings.py'
+        frontend_url = "http://localhost:5173" # Reemplaza si está en settings.py
+        verification_url = f"{frontend_url}/confirmar-turno/{token_obj.token}"
+
+        # 3. Crear el Log de Notificación (usando tu modelo)
+        if email_paciente:
+            log = NotificationLog.objects.create(
+                turno=turno,
+                channel=NotificationChannel.EMAIL,
+                template="public_booking_verification", # Template para "Por favor confirma tu turno"
+                payload={
+                    "destinatario": email_paciente,
+                    "nombre_paciente": nombre_paciente,
+                    "nombre_nutri": turno.nutricionista.full_name,  # Acceder directamente al perfil
+                    "nutricionista_id": turno.nutricionista.id,  # ID del nutricionista para usar su email
+                    "verification_url": verification_url,
+                    "fecha_hora_inicio": turno.start_time.isoformat(),
+                    "tipo_consulta": turno.tipo_consulta.get_tipo_display()
+                }
+            )
+            send_notification_email.delay(log.id)
         
         print(f"DEBUG: Token creado para turno {turno.id}: {token_obj.token}")
 
@@ -810,11 +879,45 @@ class PublicTurnoVerifyView(generics.GenericAPIView):
         turno.soft_hold_expires_at = None # Eliminar la expiración
         turno.save(update_fields=['state', 'soft_hold_expires_at', 'updated_at'])
 
-        # --- TAREA PENDIENTE ---
-        # TODO: Implementar envío de emails de notificación
-        # 1. Email al paciente (turno.intake_answers['email'])
-        # 2. Email al nutricionista (turno.nutricionista.user.email)
-        # --- FIN TAREA PENDIENTE ---
+       # 1. Notificación al Paciente (Confirmación de Reserva)
+        email_paciente = turno.intake_answers.get('email')
+        if email_paciente:
+            log_paciente = NotificationLog.objects.create(
+                turno=turno,
+                channel=NotificationChannel.EMAIL,
+                template="public_booking_confirmed_paciente", # Template para "Tu turno está reservado"
+                payload={
+                    "destinatario": email_paciente,
+                    "nombre_paciente": turno.intake_answers.get('nombre_completo', 'paciente'),
+                    "nombre_nutri": turno.nutricionista.full_name,
+                    "nutricionista_id": turno.nutricionista.id,
+                    "fecha_hora_inicio": turno.start_time.isoformat(),
+                    "ubicacion_nombre": turno.ubicacion.nombre,
+                    "tipo_consulta": turno.tipo_consulta.get_tipo_display()
+                }
+            )
+            send_notification_email.delay(log_paciente.id)
+
+        # 2. Notificación al Nutricionista (Aviso de nuevo turno)
+        email_nutri = turno.nutricionista.user.email
+        if email_nutri:
+            log_nutri = NotificationLog.objects.create(
+                turno=turno,
+                profesional=turno.nutricionista, # Trazabilidad: models.py
+                channel=NotificationChannel.EMAIL,
+                template="public_booking_confirmed_nutri", # Template para "Tienes un nuevo turno"
+                payload={
+                    "destinatario": email_nutri,
+                    "nombre_paciente": turno.intake_answers.get('nombre_completo', 'Paciente Público'),
+                    "email_paciente": turno.intake_answers.get('email'),
+                    "telefono_paciente": turno.intake_answers.get('telefono', '-'),
+                    "nombre_nutri": turno.nutricionista.full_name,
+                    "nutricionista_id": turno.nutricionista.id,
+                    "fecha_hora_inicio": turno.start_time.isoformat(),
+                    "tipo_consulta": turno.tipo_consulta.get_tipo_display()
+                }
+            )
+            send_notification_email.delay(log_nutri.id)
 
         # Devolvemos el turno completo
         return Response(

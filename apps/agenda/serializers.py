@@ -154,6 +154,7 @@ class TurnoSerializer(serializers.ModelSerializer):
             'end_time',    # Agregar para lectura
             'state',
             'notas_paciente',
+            'intake_answers',  # Datos del paciente público
             'created_at',  # CORREGIDO: era 'fecha_creacion', ahora 'created_at'
         ]
         read_only_fields = [
@@ -166,6 +167,7 @@ class TurnoSerializer(serializers.ModelSerializer):
             'start_time',       # Solo lectura
             'end_time',         # Solo lectura
             'state',            # Se manejará con acciones o estado inicial
+            'intake_answers',   # Solo lectura
             'created_at',       # CORREGIDO
         ]
 

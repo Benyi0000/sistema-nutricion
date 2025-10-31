@@ -68,7 +68,7 @@ export default function AppRoutes() {
             <Route path="/nutricionistas-disponibles" element={<ListaNutricionistasPublica />} />
             <Route path="/nutricionista/:nutricionistaId" element={<LandingNutricionista />} />
             <Route path="/nutricionista/:nutricionistaId/turno" element={<TurneroPublico />} />
-            <Route path="/confirmar-turno" element={<ConfirmarTurno />} />
+            <Route path="/confirmar-turno/:token" element={<ConfirmarTurno />} />
 
             {/* --- Panel Admin --- */}
             <Route

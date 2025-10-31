@@ -319,3 +319,49 @@ if not DEBUG:
     if DB_URL:
         DATABASES = {"default": env.db("DATABASES_URL")}
         DATABASES["default"]["ATOMIC_REQUESTS"] = True
+
+
+CELERY_BROKER_URL = 'amqp://guest:guest@localhost:5672//'
+
+# Configuración para Windows: usar pool 'solo' en lugar de 'prefork'
+# Esto evita problemas de permisos con billiard en Windows
+import sys
+if sys.platform == 'win32':
+    CELERY_BROKER_POOL_LIMIT = 1
+    # El worker debe iniciarse con: celery -A core worker --pool=solo -l info
+
+#CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CCELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
+
+# Configuración de email (¡MUY IMPORTANTE!)
+# En desarrollo: Guardar emails en archivos para poder verlos fácilmente
+# Cambiar a 'console' si quieres ver en la terminal de Celery
+if DEBUG:
+    # Guardar emails en la carpeta 'sent_emails' para debugging
+    EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
+    EMAIL_FILE_PATH = BASE_DIR / 'sent_emails'  # Crear carpeta automáticamente
+    DEFAULT_FROM_EMAIL = 'noreply@localhost'
+else:
+    # Producción: SMTP real (configurar con variables de entorno)
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
+    EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+    EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+    EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=False)
+    EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+    EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+    DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='Sistema Nutrición <noreply@sistemanutricion.com>')
+
+# Email del sistema (para notificaciones automáticas de turnos)
+# Este email se usa cuando el nutricionista no tiene configurado un email personalizado
+SYSTEM_EMAIL_HOST = env('SYSTEM_EMAIL_HOST', default='smtp.gmail.com')
+SYSTEM_EMAIL_PORT = env.int('SYSTEM_EMAIL_PORT', default=587)
+SYSTEM_EMAIL_USE_TLS = env.bool('SYSTEM_EMAIL_USE_TLS', default=True)
+SYSTEM_EMAIL_USE_SSL = env.bool('SYSTEM_EMAIL_USE_SSL', default=False)
+SYSTEM_EMAIL_HOST_USER = env('SYSTEM_EMAIL_HOST_USER', default='')
+SYSTEM_EMAIL_HOST_PASSWORD = env('SYSTEM_EMAIL_HOST_PASSWORD', default='')
+SYSTEM_DEFAULT_FROM_EMAIL = env('SYSTEM_DEFAULT_FROM_EMAIL', default='Sistema Nutrición <sistema@nutricion.com>')

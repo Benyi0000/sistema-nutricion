@@ -1,0 +1,10 @@
+{
+  "nutricionista": 1,
+  "ubicacion": 1,
+  "tipo_consulta": 1,
+  "start_time": "2025-11-25T10:00:00-03:00",
+  "end_time": "2025-11-25T10:45:00-03:00",
+  "nombre_completo": "Prueba Email Real",
+  "email": "benjaminbenitez55@gmail.com",
+  "telefono": "+5493512222222"
+}

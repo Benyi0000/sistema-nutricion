@@ -147,7 +147,13 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
         turnos_ocupados = Turno.objects.filter(
             nutricionista=nutricionista,
             slot__overlap=Range(day_start, day_end, bounds='[)')
-        ).filter(
+        )
+        
+        # Filtrar por ubicación si se especificó
+        if ubicacion_id:
+            turnos_ocupados = turnos_ocupados.filter(ubicacion_id=ubicacion_id)
+        
+        turnos_ocupados = turnos_ocupados.filter(
             # Ocupan slot si están RESERVADOS, CONFIRMADOS o ATENDIDOS
             Q(state__in=[
                 TurnoState.RESERVADO, 
@@ -184,8 +190,8 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
             
             # Expandir el slot del turno para incluir sus buffers
             turno_total_range = Range(
-                t.slot.lower - datetime.timedelta(minutes=turno_buffer_before),
-                t.slot.upper + datetime.timedelta(minutes=turno_buffer_after),
+                (t.slot.lower - datetime.timedelta(minutes=turno_buffer_before)),
+                (t.slot.upper + datetime.timedelta(minutes=turno_buffer_after)),
                 bounds='[)'
             )
             occupied_ranges.append(turno_total_range)
@@ -196,11 +202,21 @@ def calculate_available_slots(nutricionista, start_date, end_date, duracion_minu
             is_occupied = False
             potential_total_range = potential_slot_data['total_range']
             
+            # Convertir potential_total_range a UTC para comparación consistente
+            import datetime as dt
+            potential_lower_utc = potential_total_range.lower.astimezone(dt.timezone.utc) if potential_total_range.lower.tzinfo else potential_total_range.lower
+            potential_upper_utc = potential_total_range.upper.astimezone(dt.timezone.utc) if potential_total_range.upper.tzinfo else potential_total_range.upper
+            
             for occupied in occupied_ranges:
+                # Convertir occupied a UTC también para comparación consistente
+                occupied_lower_utc = occupied.lower.astimezone(dt.timezone.utc) if occupied.lower.tzinfo else occupied.lower
+                occupied_upper_utc = occupied.upper.astimezone(dt.timezone.utc) if occupied.upper.tzinfo else occupied.upper
+                
                 # Verificar si el rango total del slot potencial se solapa con algún rango ocupado
-                if potential_total_range.lower < occupied.upper and potential_total_range.upper > occupied.lower:
+                if potential_lower_utc < occupied_upper_utc and potential_upper_utc > occupied_lower_utc:
                    is_occupied = True
                    break
+            
             if potential_slot_data['slot'].lower < now:
                 is_occupied = True
 

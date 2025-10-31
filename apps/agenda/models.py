@@ -369,7 +369,7 @@ class NotificationLog(models.Model):
     channel = models.CharField(max_length=16, choices=NotificationChannel.choices)
     template = models.CharField(max_length=64)  # ej: booking_confirmation, reminder_24h, reminder_3h, offer_waitlist
     payload = models.JSONField(default=dict, blank=True)
-    sent_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)  # Se establece cuando realmente se envía
     delivered = models.BooleanField(default=False)
     delivery_meta = models.JSONField(default=dict, blank=True)
 

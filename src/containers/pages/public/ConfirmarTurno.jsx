@@ -1,16 +1,15 @@
 // src/containers/pages/public/ConfirmarTurno.jsx
 import React, { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // Esta página recibe el token del MagicLink y confirma el turno
-// URL: /confirmar-turno?token=UUID
+// URL: /confirmar-turno/:token
 
 export default function ConfirmarTurno() {
-  const [searchParams] = useSearchParams();
+  const { token } = useParams();
   const navigate = useNavigate();
-  const token = searchParams.get('token');
 
   const [estado, setEstado] = useState('loading'); // loading, success, error
   const [turno, setTurno] = useState(null);
@@ -26,38 +25,19 @@ export default function ConfirmarTurno() {
     // Llamar al endpoint de verificación
     const confirmarTurno = async () => {
       try {
-        // TODO: Implementar llamada real
-        // const response = await fetch('/api/public/agenda/turnos/verify/', {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify({ token })
-        // });
-        // 
-        // if (!response.ok) {
-        //   throw new Error('Token inválido o expirado');
-        // }
-        // 
-        // const data = await response.json();
-        // setTurno(data);
-        // setEstado('success');
-
-        // Simulación por ahora
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Mock de respuesta
-        setTurno({
-          id: 123,
-          start_time: '2025-10-31T14:00:00',
-          end_time: '2025-10-31T15:00:00',
-          ubicacion: { nombre: 'Consultorio Centro', direccion: 'Av. Córdoba 1234' },
-          tipo_consulta: { tipo_display: 'Primera Consulta', duracion_min: 60 },
-          nutricionista: { full_name: 'Lic. María García' },
-          intake_answers: {
-            nombre_completo: 'Juan Pérez',
-            email: 'juan@ejemplo.com',
-            telefono: '+54 9 11 1234-5678'
-          }
+        const response = await fetch('http://localhost:8000/api/public/agenda/turnos/verify/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
         });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Token inválido o expirado');
+        }
+        
+        const data = await response.json();
+        setTurno(data);
         setEstado('success');
 
       } catch (err) {
