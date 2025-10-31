@@ -319,3 +319,24 @@ if not DEBUG:
     if DB_URL:
         DATABASES = {"default": env.db("DATABASES_URL")}
         DATABASES["default"]["ATOMIC_REQUESTS"] = True
+# core/settings.py
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "django.server": {          # peticiones HTTP
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+        "django.request": {         # errores 4xx/5xx
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}

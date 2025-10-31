@@ -1,6 +1,6 @@
 // src/containers/pages/nutricionista/PlantillaFormPage.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import {
@@ -60,8 +60,95 @@ const PlantillaFormPage = () => {
   const [opcionTemporal, setOpcionTemporal] = useState('');
   const [errorsNuevaPregunta, setErrorsNuevaPregunta] = useState({});
 
+  const normalizeCategorias = (rawCats) => {
+    if (!Array.isArray(rawCats)) return [];
+
+    const vistos = new Set();
+    const normalizadas = [];
+
+    rawCats.forEach((cat, index) => {
+      let categoriaNormalizada = null;
+
+      if (typeof cat === 'string') {
+        const id = String(cat).trim();
+        if (!id) return;
+        categoriaNormalizada = {
+          id,
+          nombre: cat,
+          orden: index,
+        };
+      } else if (cat && typeof cat === 'object') {
+        const nombreCrudo =
+          cat.nombre ??
+          cat.label ??
+          cat.titulo ??
+          cat.name ??
+          cat.title ??
+          '';
+
+        const resolvedId =
+          cat.id ??
+          cat.temp_id ??
+          cat.key ??
+          nombreCrudo ??
+          `cat-${index}`;
+
+        const id = String(resolvedId).trim();
+        if (!id) return;
+
+        const nombre = String(nombreCrudo || id).trim() || id;
+
+        categoriaNormalizada = {
+          id,
+          nombre,
+          orden: cat.orden ?? index,
+        };
+      }
+
+      if (categoriaNormalizada && !vistos.has(categoriaNormalizada.id)) {
+        vistos.add(categoriaNormalizada.id);
+        normalizadas.push(categoriaNormalizada);
+      }
+    });
+
+    return normalizadas
+      .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+      .map((cat, idx) => ({ ...cat, orden: idx }));
+  };
+
+  const inferCategoriasDesdePreguntas = (preguntas = []) => {
+    const map = new Map();
+
+    preguntas.forEach((pc) => {
+      const rawCategoria = pc?.config?.categoria;
+      if (rawCategoria === null || rawCategoria === undefined || rawCategoria === '') return;
+
+      const id = String(rawCategoria).trim();
+      if (!id || map.has(id)) return;
+
+      const nombre =
+        pc?.config?.categoria_nombre ??
+        pc?.config?.categoriaNombre ??
+        pc?.config?.categoria_label ??
+        pc?.config?.categoriaLabel ??
+        id;
+
+      map.set(id, {
+        id,
+        nombre: String(nombre || id).trim() || id,
+        orden: map.size,
+      });
+    });
+
+    return Array.from(map.values());
+  };
+
   useEffect(() => {
     if (plantilla && isEditing) {
+      setEditingCategoriaId(null);
+      setEditingCategoriaName('');
+      setEditingCategoriaError('');
+
       setFormData({
         nombre: plantilla.nombre,
         descripcion: plantilla.descripcion || '',
@@ -70,6 +157,20 @@ const PlantillaFormPage = () => {
         activo: plantilla.activo,
         config: plantilla.config || {},
       });
+
+      let categoriasConfig = normalizeCategorias(plantilla.config?.categorias);
+
+      if (categoriasConfig.length === 0) {
+        const inferidas = normalizeCategorias(
+          inferCategoriasDesdePreguntas(plantilla.preguntas_config)
+        );
+        if (inferidas.length > 0) {
+          categoriasConfig = inferidas;
+        }
+      }
+      setCategorias(categoriasConfig);
+
+      const categoriaIds = new Set(categoriasConfig.map((cat) => cat.id));
 
       // Cargar preguntas de la plantilla
       if (plantilla.preguntas_config) {
@@ -81,7 +182,12 @@ const PlantillaFormPage = () => {
             requerido_en_plantilla: pc.requerido_en_plantilla,
             visible: pc.visible,
             config: pc.config || {},
-            categoriaId: null,
+            categoriaId: (() => {
+              const rawCategoria = pc.config?.categoria ?? null;
+              if (rawCategoria === null || rawCategoria === undefined) return null;
+              const normalized = String(rawCategoria);
+              return categoriaIds.has(normalized) ? normalized : null;
+            })(),
           }))
         );
       }
@@ -162,6 +268,7 @@ const PlantillaFormPage = () => {
       {
         id: `cat-${Date.now()}`,
         nombre: trimmed,
+        orden: prev.length,
       },
     ]);
     setNewCategoriaName('');
@@ -180,7 +287,11 @@ const PlantillaFormPage = () => {
       setEditingCategoriaName('');
       setEditingCategoriaError('');
     }
-    setCategorias((prev) => prev.filter((cat) => cat.id !== categoriaId));
+    setCategorias((prev) =>
+      prev
+        .filter((cat) => cat.id !== categoriaId)
+        .map((cat, index) => ({ ...cat, orden: index }))
+    );
     setPreguntasSeleccionadas((prev) =>
       prev.map((item) =>
         item.categoriaId === categoriaId
@@ -221,7 +332,9 @@ const PlantillaFormPage = () => {
     }
 
     setCategorias((prev) =>
-      prev.map((cat) => (cat.id === categoriaId ? { ...cat, nombre: trimmed } : cat))
+      prev.map((cat) =>
+        cat.id === categoriaId ? { ...cat, nombre: trimmed } : cat
+      )
     );
     setEditingCategoriaId(null);
     setEditingCategoriaName('');
@@ -335,14 +448,27 @@ const PlantillaFormPage = () => {
     setErrors({});
 
     try {
+      const categoriasPayload = categorias.map((cat, index) => ({
+        id: cat.id,
+        nombre: cat.nombre,
+        orden: index,
+      }));
+
       const data = {
         ...formData,
-        preguntas: preguntasSeleccionadas.map((p) => ({
+        config: {
+          ...(formData.config || {}),
+          categorias: categoriasPayload,
+        },
+        preguntas: preguntasSeleccionadas.map((p, index) => ({
           pregunta_id: p.pregunta_id,
-          orden: p.orden,
+          orden: index,
           requerido_en_plantilla: p.requerido_en_plantilla,
           visible: p.visible,
-          config: p.config,
+          config: {
+            ...(p.config || {}),
+            categoria: p.categoriaId || null,
+          },
         })),
       };
 
@@ -370,6 +496,32 @@ const PlantillaFormPage = () => {
   const preguntasDisponiblesFiltradas = preguntasDisponibles?.filter(
     (p) => !preguntasSeleccionadas.some((ps) => ps.pregunta_id === p.id)
   ) || [];
+
+  const preguntasAgrupadas = useMemo(() => {
+    const mapa = new Map();
+    categorias.forEach((cat) => mapa.set(cat.id, []));
+
+    const sinCategoria = [];
+
+    preguntasSeleccionadas
+      .slice()
+      .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+      .forEach((item) => {
+        if (item.categoriaId && mapa.has(item.categoriaId)) {
+          mapa.get(item.categoriaId).push(item);
+        } else {
+          sinCategoria.push(item);
+        }
+      });
+
+    return {
+      porCategoria: categorias.map((cat) => ({
+        cat,
+        preguntas: mapa.get(cat.id) || [],
+      })),
+      sinCategoria,
+    };
+  }, [preguntasSeleccionadas, categorias]);
 
   // Componente Modal como Portal
   const modalContent = showModalNuevaPregunta && createPortal(
@@ -889,13 +1041,9 @@ const PlantillaFormPage = () => {
                 </div>
               )}
 
-              {categorias.length > 0 && (
+              {preguntasAgrupadas.porCategoria.length > 0 && (
                 <div className="space-y-4 mb-6">
-                  {categorias.map((cat) => {
-                    const preguntasDeCategoria = preguntasSeleccionadas.filter(
-                      (item) => item.categoriaId === cat.id
-                    );
-                    return (
+                  {preguntasAgrupadas.porCategoria.map(({ cat, preguntas }) => (
                       <div key={cat.id} className="border border-indigo-200 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           {editingCategoriaId === cat.id ? (
@@ -955,13 +1103,13 @@ const PlantillaFormPage = () => {
                             )}
                           </div>
                         </div>
-                        {preguntasDeCategoria.length === 0 ? (
+                        {preguntas.length === 0 ? (
                           <p className="text-sm text-gray-500">
                             Aún no hay preguntas en esta categoría.
                           </p>
                         ) : (
                           <div className="space-y-2">
-                            {preguntasDeCategoria.map((item, index) => (
+                            {preguntas.map((item, index) => (
                               <div key={item.pregunta_id} className="bg-gray-50 border rounded-lg p-4">
                                 {renderPreguntaCard(item, index, false)}
                               </div>
@@ -969,12 +1117,11 @@ const PlantillaFormPage = () => {
                           </div>
                         )}
                       </div>
-                    );
-                  })}
+                    ))}
                 </div>
               )}
 
-              {preguntasSeleccionadas.length === 0 && categorias.length === 0 ? (
+              {preguntasSeleccionadas.length === 0 ? (
                 <div className="text-center py-12">
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -984,14 +1131,20 @@ const PlantillaFormPage = () => {
                     Selecciona preguntas del banco para agregarlas a la plantilla
                   </p>
                 </div>
-              ) : preguntasSeleccionadas.length > 0 ? (
-                <DragDropContext onDragEnd={handleDragEnd}>
-                  <Droppable droppableId="preguntas">
-                    {(provided) => (
-                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                        {preguntasSeleccionadas
-                          .filter((item) => !item.categoriaId)
-                          .map((item, index) => (
+              ) : null}
+
+              {preguntasAgrupadas.sinCategoria.length > 0 && (
+                <div>
+                  {preguntasAgrupadas.porCategoria.length > 0 && (
+                    <h3 className="text-sm font-semibold text-gray-600 mb-3 uppercase tracking-wide">
+                      Preguntas sin categoría
+                    </h3>
+                  )}
+                  <DragDropContext onDragEnd={handleDragEnd}>
+                    <Droppable droppableId="preguntas">
+                      {(provided) => (
+                        <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                          {preguntasAgrupadas.sinCategoria.map((item, index) => (
                             <Draggable key={item.pregunta_id} draggableId={String(item.pregunta_id)} index={index}>
                               {(provided, snapshot) => (
                                 <div
@@ -1006,12 +1159,13 @@ const PlantillaFormPage = () => {
                               )}
                             </Draggable>
                           ))}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </DragDropContext>
-              ) : null}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
+                  </DragDropContext>
+                </div>
+              )}
             </div>
 
             {/* Banco de Preguntas */}

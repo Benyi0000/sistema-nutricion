@@ -46,6 +46,17 @@ export default function ConsultaInicial() {
     const [valores, setValores] = useState({});
     const [obs, setObs] = useState({});
 
+    const normalizeCategorias = (rawCats) =>
+        Array.isArray(rawCats)
+            ? rawCats
+                .map((cat, index) => ({
+                    id: String(cat?.id ?? cat?.temp_id ?? `cat-${index}`),
+                    nombre: cat?.nombre || `Categoría ${index + 1}`,
+                    orden: cat?.orden ?? index,
+                }))
+                .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+            : [];
+
     // Cargar preguntas iniciales
     useEffect(() => {
         if (!modoPlantilla) {
@@ -81,16 +92,26 @@ export default function ConsultaInicial() {
         }
 
         // Generar snapshot de la plantilla
+        const categorias = normalizeCategorias(plantilla.config?.categorias);
+        const categoriaIds = new Set(categorias.map((cat) => cat.id));
+
         const snapshot = {
             plantilla_id: plantilla.id,
             nombre: plantilla.nombre,
             tipo_consulta: plantilla.tipo_consulta,
             config: plantilla.config,
+            categorias,
             preguntas: plantilla.preguntas_config.map(pc => ({
                 orden: pc.orden,
                 visible: pc.visible,
                 requerido: pc.requerido_en_plantilla,
                 config: pc.config,
+                categoria: (() => {
+                    const rawCategoria = pc.config?.categoria ?? null;
+                    if (rawCategoria === null || rawCategoria === undefined) return null;
+                    const normalized = String(rawCategoria);
+                    return categoriaIds.has(normalized) ? normalized : null;
+                })(),
                 pregunta: {
                     id: pc.pregunta.id,
                     texto: pc.pregunta.texto,
@@ -120,15 +141,16 @@ export default function ConsultaInicial() {
     // Obtener lista de preguntas a mostrar
     const preguntasAMostrar = useMemo(() => {
         if (modoPlantilla && plantillaSnapshot) {
-            // Modo plantilla: usar preguntas de la plantilla ordenadas
             return plantillaSnapshot.preguntas
                 .filter(pc => pc.visible)
                 .sort((a, b) => a.orden - b.orden)
-                .map(pc => pc.pregunta);
-        } else {
-            // Modo manual: usar todas las preguntas iniciales
-            return preguntas;
+                .map(pc => ({
+                    ...pc.pregunta,
+                    categoria: pc.categoria,
+                    orden: pc.orden,
+                }));
         }
+        return preguntas;
     }, [modoPlantilla, plantillaSnapshot, preguntas]);
 
     // Preseleccionar requeridas (solo en modo manual)
@@ -367,6 +389,7 @@ export default function ConsultaInicial() {
                                 toggleSel={toggleSel}
                                 setVal={setVal}
                                 setOb={setOb}
+                                categorias={plantillaSnapshot?.categorias}
                             />
                         </div>
 
