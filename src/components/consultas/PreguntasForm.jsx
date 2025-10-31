@@ -100,15 +100,6 @@ export default function PreguntasForm({
         </div>
       )}
 
-      {sinCategoria.length > 0 && (
-        <div className="space-y-3">
-          {categoriasOrdenadas.length > 0 && (
-            <h4 className="text-sm font-semibold text-gray-600">Sin categoría</h4>
-          )}
-          {renderBloque(sinCategoria)}
-        </div>
-      )}
-
       {preguntasPorCategoria.map(({ cat, preguntas }) =>
         preguntas.length > 0 ? (
           <div key={cat.id} className="mt-6 space-y-3">
@@ -119,6 +110,15 @@ export default function PreguntasForm({
             {renderBloque(preguntas)}
           </div>
         ) : null
+      )}
+
+      {sinCategoria.length > 0 && (
+        <div className={`space-y-3 ${categoriasOrdenadas.length > 0 ? 'mt-6' : ''}`}>
+          {categoriasOrdenadas.length > 0 && (
+            <h4 className="text-sm font-semibold text-gray-600">Sin categoría</h4>
+          )}
+          {renderBloque(sinCategoria)}
+        </div>
       )}
     </div>
   );
