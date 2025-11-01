@@ -879,7 +879,7 @@ class PlantillaConsultaListSerializer(serializers.ModelSerializer):
         model = PlantillaConsulta
         fields = (
             'id', 'owner', 'owner_info', 'nombre', 'descripcion',
-            'tipo_consulta', 'es_predeterminada', 'activo',
+            'tipo_consulta', 'es_predeterminada', 'activo', 'config',
             'cantidad_preguntas', 'preguntas_config', 'created_at'
         )
         read_only_fields = fields

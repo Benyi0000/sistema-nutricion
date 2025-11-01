@@ -38,6 +38,17 @@ import {
     const [query, setQuery] = useState("");
     const [nuevaPregunta, setNuevaPregunta] = useState("");
 
+    const normalizeCategorias = (rawCats) =>
+        Array.isArray(rawCats)
+            ? rawCats
+                .map((cat, index) => ({
+                    id: String(cat?.id ?? cat?.temp_id ?? `cat-${index}`),
+                    nombre: cat?.nombre || `Categoría ${index + 1}`,
+                    orden: cat?.orden ?? index,
+                }))
+                .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+            : [];
+
     // Estado para plantillas
     const [modoPlantilla, setModoPlantilla] = useState(false);
     const [plantillaSeleccionada, setPlantillaSeleccionada] = useState(null);
@@ -64,11 +75,15 @@ import {
         if (!plantilla || !plantilla.preguntas_config) return;
 
         // Generar snapshot
+        const categorias = normalizeCategorias(plantilla.config?.categorias);
+        const categoriaIds = new Set(categorias.map((cat) => cat.id));
+
         const snapshot = {
             id: plantilla.id,
             nombre: plantilla.nombre,
             descripcion: plantilla.descripcion,
             tipo_consulta: plantilla.tipo_consulta,
+            categorias,
             preguntas: plantilla.preguntas_config.map(pc => ({
                 id: pc.pregunta.id,
                 texto: pc.pregunta.texto,
@@ -79,6 +94,12 @@ import {
                 requerido: pc.requerido_en_plantilla || false,
                 visible: pc.visible,
                 orden: pc.orden,
+                categoria: (() => {
+                    const rawCategoria = pc.config?.categoria ?? null;
+                    if (rawCategoria === null || rawCategoria === undefined) return null;
+                    const normalized = String(rawCategoria);
+                    return categoriaIds.has(normalized) ? normalized : null;
+                })(),
             })),
         };
         setPlantillaSnapshot(snapshot);
@@ -576,43 +597,92 @@ import {
                             {seleccionadas.length} {seleccionadas.length !== 1 ? 'preguntas' : 'pregunta'}
                         </span>
                     </div>
-                    
-                    {seleccionadas.map((q) => (
-                        <div key={q.id} className="bg-gray-50 border-2 border-gray-200 rounded-lg p-5 relative hover:border-indigo-300 transition-colors">
-                            {/* Botón quitar */}
-                            <button
-                                type="button"
-                                onClick={() => setSeleccionadas((prev) => prev.filter((p) => p.id !== q.id))}
-                                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                                aria-label="Quitar pregunta"
-                                title="Quitar pregunta"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
 
-                            <label className="block text-base font-semibold text-gray-900 mb-3 pr-10">
-                                {q.texto}
-                                {q.requerido && <span className="text-red-600 ml-1">*</span>}
-                            </label>
+                    {(() => {
+                        const categoriasOrdenadas = Array.isArray(plantillaSnapshot?.categorias)
+                            ? [...plantillaSnapshot.categorias].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+                            : [];
+                        const categoriaIds = new Set(categoriasOrdenadas.map((cat) => String(cat.id)));
 
-                            {/* Valor según tipo */}
-                            <div className="mt-2">
-                                <InputByType
-                                    q={q}
-                                    value={valores[q.id]}
-                                    onChange={(v) => setVal(q.id, v)}
+                        const sinCategoria = seleccionadas.filter((q) => {
+                            const catId = q.categoria !== undefined && q.categoria !== null ? String(q.categoria) : null;
+                            return !catId || !categoriaIds.has(catId);
+                        });
+
+                        const porCategoria = categoriasOrdenadas.map((cat) => {
+                            const catId = String(cat.id);
+                            return {
+                                cat,
+                                preguntas: seleccionadas.filter((q) => {
+                                    const qCatId = q.categoria !== undefined && q.categoria !== null ? String(q.categoria) : null;
+                                    return qCatId === catId;
+                                }),
+                            };
+                        });
+
+                        const renderItem = (q) => (
+                            <div key={q.id} className="bg-gray-50 border-2 border-gray-200 rounded-lg p-5 relative hover:border-indigo-300 transition-colors">
+                                <button
+                                    type="button"
+                                    onClick={() => setSeleccionadas((prev) => prev.filter((p) => p.id !== q.id))}
+                                    className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                                    aria-label="Quitar pregunta"
+                                    title="Quitar pregunta"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+
+                                <label className="block text-base font-semibold text-gray-900 mb-3 pr-10">
+                                    {q.texto}
+                                    {q.requerido && <span className="text-red-600 ml-1">*</span>}
+                                </label>
+
+                                <div className="mt-2">
+                                    <InputByType
+                                        q={q}
+                                        value={valores[q.id]}
+                                        onChange={(v) => setVal(q.id, v)}
+                                    />
+                                </div>
+
+                                <ObservationField
+                                    value={obs[q.id] || ""}
+                                    onChange={(txt) => setObFn(q.id, txt)}
                                 />
                             </div>
+                        );
 
-                            {/* Observación transversal */}
-                            <ObservationField
-                                value={obs[q.id] || ""}
-                                onChange={(txt) => setObFn(q.id, txt)}
-                            />
-                        </div>
-                    ))}
+                        return (
+                            <div className="space-y-6">
+                                {sinCategoria.length > 0 && (
+                                    <div className="space-y-3">
+                                        {porCategoria.length > 0 && (
+                                            <h4 className="text-sm font-semibold text-gray-600">Sin categoría</h4>
+                                        )}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {sinCategoria.map(renderItem)}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {porCategoria.map(({ cat, preguntas }) =>
+                                    preguntas.length > 0 ? (
+                                        <div key={cat.id} className="space-y-3">
+                                            <h4 className="text-sm font-semibold text-indigo-700 flex items-center gap-2">
+                                                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                                {cat.nombre}
+                                            </h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {preguntas.map(renderItem)}
+                                            </div>
+                                        </div>
+                                    ) : null
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
             )}
 

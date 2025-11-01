@@ -307,8 +307,6 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False # Default es False, pero lo hacemos explícito
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-
 # --- Deploy overrides (usa tus *_DEPLOY) ---
 if not DEBUG:
     ALLOWED_HOSTS = env.list("ALLOWED_HOSTS_DEPLOY", default=ALLOWED_HOSTS)
@@ -331,7 +329,7 @@ if sys.platform == 'win32':
     # El worker debe iniciarse con: celery -A core worker --pool=solo -l info
 
 #CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-CCELERY_ACCEPT_CONTENT = ['json']
+CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE

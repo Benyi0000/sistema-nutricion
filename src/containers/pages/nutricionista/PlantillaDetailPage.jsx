@@ -1,6 +1,6 @@
 // src/containers/pages/nutricionista/PlantillaDetailPage.jsx
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useGetPlantillaQuery } from '../../../features/plantillas/plantillasSlice';
 
@@ -9,6 +9,149 @@ const PlantillaDetailPage = () => {
   const navigate = useNavigate();
 
   const { data: plantilla, isLoading, error } = useGetPlantillaQuery(id);
+
+  const normalizeCategorias = useMemo(() => {
+    return (rawCats) => {
+      if (!Array.isArray(rawCats)) return [];
+
+      const vistos = new Set();
+      const normalizadas = [];
+
+      rawCats.forEach((cat, index) => {
+        let categoriaNormalizada = null;
+
+        if (typeof cat === 'string') {
+          const id = String(cat).trim();
+          if (!id) return;
+          categoriaNormalizada = {
+            id,
+            nombre: cat,
+            orden: index,
+          };
+        } else if (cat && typeof cat === 'object') {
+          const nombreCrudo =
+            cat.nombre ??
+            cat.label ??
+            cat.titulo ??
+            cat.name ??
+            cat.title ??
+            '';
+
+          const resolvedId =
+            cat.id ??
+            cat.temp_id ??
+            cat.key ??
+            nombreCrudo ??
+            `cat-${index}`;
+
+          const id = String(resolvedId).trim();
+          if (!id) return;
+
+          const nombre = String(nombreCrudo || id).trim() || id;
+
+          categoriaNormalizada = {
+            id,
+            nombre,
+            orden: cat.orden ?? index,
+          };
+        }
+
+        if (categoriaNormalizada && !vistos.has(categoriaNormalizada.id)) {
+          vistos.add(categoriaNormalizada.id);
+          normalizadas.push(categoriaNormalizada);
+        }
+      });
+
+      return normalizadas
+        .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+        .map((cat, idx) => ({ ...cat, orden: idx }));
+    };
+  }, []);
+
+  const inferCategoriasDesdePreguntas = useMemo(() => {
+    return (preguntas = []) => {
+      const map = new Map();
+
+      preguntas.forEach((pc) => {
+        const rawCategoria = pc?.config?.categoria;
+        if (rawCategoria === null || rawCategoria === undefined || rawCategoria === '') return;
+
+        const id = String(rawCategoria).trim();
+        if (!id || map.has(id)) return;
+
+        const nombre =
+          pc?.config?.categoria_nombre ??
+          pc?.config?.categoriaNombre ??
+          pc?.config?.categoria_label ??
+          pc?.config?.categoriaLabel ??
+          id;
+
+        map.set(id, {
+          id,
+          nombre: String(nombre || id).trim() || id,
+          orden: map.size,
+        });
+      });
+
+      return Array.from(map.values());
+    };
+  }, []);
+
+  const categoriasInfo = useMemo(() => {
+    if (!plantilla) return { categorias: [], categoriaMap: new Map() };
+
+    let categorias = normalizeCategorias(plantilla.config?.categorias || []);
+
+    if (categorias.length === 0) {
+      const inferidas = normalizeCategorias(
+        inferCategoriasDesdePreguntas(plantilla.preguntas_config)
+      );
+      if (inferidas.length > 0) {
+        categorias = inferidas;
+      }
+    }
+
+    const categoriaMap = new Map(categorias.map((cat) => [cat.id, cat]));
+    return { categorias, categoriaMap };
+  }, [plantilla, normalizeCategorias, inferCategoriasDesdePreguntas]);
+
+  const preguntasAgrupadas = useMemo(() => {
+    if (!plantilla) {
+      return { sinCategoria: [], porCategoria: [] };
+    }
+
+    const ordenadas = Array.isArray(plantilla.preguntas_config)
+      ? [...plantilla.preguntas_config].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+      : [];
+
+    const sinCategoria = [];
+    const map = new Map();
+    categoriasInfo.categorias.forEach((cat) => map.set(cat.id, []));
+
+    let contador = 1;
+
+    ordenadas.forEach((pc) => {
+      const rawCategoria = pc?.config?.categoria;
+      const catId = rawCategoria === null || rawCategoria === undefined || rawCategoria === ''
+        ? null
+        : String(rawCategoria).trim();
+
+      const item = { ...pc, displayIndex: contador++ };
+
+      if (catId && map.has(catId)) {
+        map.get(catId).push(item);
+      } else {
+        sinCategoria.push(item);
+      }
+    });
+
+    const porCategoria = categoriasInfo.categorias.map((cat) => ({
+      cat,
+      preguntas: map.get(cat.id) || [],
+    }));
+
+    return { sinCategoria, porCategoria };
+  }, [plantilla, categoriasInfo]);
 
   if (isLoading) {
     return (
@@ -30,6 +173,9 @@ const PlantillaDetailPage = () => {
 
   const esSistema = plantilla.owner_info.tipo === 'sistema';
   const puedeEditar = !esSistema;
+  const configEntries = Object.entries(plantilla.config || {}).filter(
+    ([key]) => key !== 'categorias'
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -102,12 +248,12 @@ const PlantillaDetailPage = () => {
         </div>
       </div>
 
-      {/* Configuración (si existe) */}
-      {plantilla.config && Object.keys(plantilla.config).length > 0 && (
+      {/* Configuración (si existe y excluyendo categorías) */}
+      {configEntries.length > 0 && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Configuración</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {Object.entries(plantilla.config).map(([key, value]) => (
+            {configEntries.map(([key, value]) => (
               <div key={key} className="flex items-center">
                 <div className={`flex-shrink-0 h-5 w-5 rounded-full flex items-center justify-center ${
                   value ? 'bg-green-100' : 'bg-gray-100'
@@ -140,98 +286,55 @@ const PlantillaDetailPage = () => {
         </div>
 
         {plantilla.preguntas_config && plantilla.preguntas_config.length > 0 ? (
-          <div className="divide-y divide-gray-200">
-            {plantilla.preguntas_config.map((pc, index) => (
-              <div key={pc.id} className="px-6 py-4 hover:bg-gray-50">
-                <div className="flex items-start gap-4">
-                  {/* Número de orden */}
-                  <div className="flex-shrink-0 w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-semibold text-sm">
-                    {index + 1}
+          <div>
+            {preguntasAgrupadas.porCategoria.map(({ cat, preguntas }) =>
+              preguntas.length > 0 ? (
+                <div key={cat.id} className="border-b border-gray-200">
+                  <div className="px-6 pt-6 pb-2 flex items-center gap-2 text-sm font-semibold text-indigo-700 uppercase tracking-wide">
+                    <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-indigo-500"></span>
+                    {cat.nombre}
                   </div>
-
-                  {/* Contenido de la pregunta */}
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-base font-medium text-gray-900">
-                          {pc.pregunta.texto}
-                        </h3>
-                        <div className="mt-2 flex items-center gap-3 text-sm text-gray-500">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                            {pc.pregunta.tipo}
-                          </span>
-                          {pc.pregunta.unidad && (
-                            <span className="flex items-center">
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                              </svg>
-                              {pc.pregunta.unidad}
-                            </span>
-                          )}
-                          {pc.pregunta.codigo && (
-                            <span className="text-xs text-gray-400">
-                              Código: {pc.pregunta.codigo}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Opciones (si es tipo selección) */}
-                        {pc.pregunta.opciones && pc.pregunta.opciones.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-xs text-gray-500 mb-1">Opciones:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {pc.pregunta.opciones.map((opcion, i) => (
-                                <span key={i} className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-700 border border-blue-200">
-                                  {typeof opcion === 'string' ? opcion : opcion.etiqueta || opcion.valor}
-                                </span>
-                              ))}
-                            </div>
+                  <div className="divide-y divide-gray-200">
+                    {preguntas.map((pc) => (
+                      <div key={pc.id} className="px-6 py-4 hover:bg-gray-50">
+                        <div className="flex items-start gap-4">
+                          <div className="flex-shrink-0 w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-semibold text-sm">
+                            {pc.displayIndex}
                           </div>
-                        )}
-
-                        {/* Badges de estado */}
-                        <div className="mt-3 flex items-center gap-2">
-                          {pc.requerido_en_plantilla && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                              </svg>
-                              Requerida
-                            </span>
-                          )}
-                          {!pc.visible && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
-                                <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-                              </svg>
-                              Oculta
-                            </span>
-                          )}
-                          {pc.pregunta.es_personalizada && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
-                              Personalizada
-                            </span>
-                          )}
+                          <div className="flex-1">
+                            {renderPreguntaDetalle(pc, cat.nombre)}
+                          </div>
                         </div>
-
-                        {/* Config adicional */}
-                        {pc.config && Object.keys(pc.config).length > 0 && (
-                          <details className="mt-3">
-                            <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
-                              Ver configuración adicional
-                            </summary>
-                            <pre className="mt-2 text-xs bg-gray-50 p-2 rounded overflow-auto">
-                              {JSON.stringify(pc.config, null, 2)}
-                            </pre>
-                          </details>
-                        )}
                       </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
+              ) : null
+            )}
+
+            {preguntasAgrupadas.sinCategoria.length > 0 && (
+              <div className="border-b border-gray-200">
+                {categoriasInfo.categorias.length > 0 && (
+                  <div className="px-6 pt-6 pb-2 text-sm font-semibold text-gray-600 uppercase tracking-wide">
+                    Sin categoría
+                  </div>
+                )}
+                <div className="divide-y divide-gray-200">
+                  {preguntasAgrupadas.sinCategoria.map((pc) => (
+                    <div key={pc.id} className="px-6 py-4 hover:bg-gray-50">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-semibold text-sm">
+                          {pc.displayIndex}
+                        </div>
+                        <div className="flex-1">
+                          {renderPreguntaDetalle(pc)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
+            )}
           </div>
         ) : (
           <div className="px-6 py-12 text-center text-gray-500">
@@ -247,3 +350,96 @@ const PlantillaDetailPage = () => {
 };
 
 export default PlantillaDetailPage;
+
+function renderPreguntaDetalle(pc, categoriaNombre) {
+  return (
+    <div>
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className="text-base font-medium text-gray-900">
+            {pc.pregunta.texto}
+          </h3>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-500">
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+              {pc.pregunta.tipo}
+            </span>
+            {pc.pregunta.unidad && (
+              <span className="flex items-center">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                {pc.pregunta.unidad}
+              </span>
+            )}
+            {pc.pregunta.codigo && (
+              <span className="text-xs text-gray-400">
+                Código: {pc.pregunta.codigo}
+              </span>
+            )}
+            {categoriaNombre && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                {categoriaNombre}
+              </span>
+            )}
+          </div>
+
+          {pc.pregunta.opciones && pc.pregunta.opciones.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs text-gray-500 mb-1">Opciones:</p>
+              <div className="flex flex-wrap gap-2">
+                {pc.pregunta.opciones.map((opcion, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-700 border border-blue-200"
+                  >
+                    {typeof opcion === 'string' ? opcion : opcion.etiqueta || opcion.valor}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-3 flex items-center gap-2">
+            {pc.requerido_en_plantilla && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                Requerida
+              </span>
+            )}
+            {!pc.visible && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"
+                    clipRule="evenodd"
+                  />
+                  <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                </svg>
+                Oculta
+              </span>
+            )}
+            {pc.pregunta.es_personalizada && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                Personalizada
+              </span>
+            )}
+          </div>
+
+          {pc.config && Object.keys(pc.config).length > 0 && (
+            <details className="mt-3">
+              <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
+                Ver configuración adicional
+              </summary>
+              <pre className="mt-2 text-xs bg-gray-50 p-2 rounded overflow-auto">
+                {JSON.stringify(pc.config, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

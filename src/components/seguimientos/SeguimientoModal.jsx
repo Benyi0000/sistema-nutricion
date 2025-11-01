@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 export default function SeguimientoModal({ seguimiento, paciente, onClose }) {
   const modalRef = useRef(null);
@@ -45,6 +45,10 @@ export default function SeguimientoModal({ seguimiento, paciente, onClose }) {
 
   const metricas = seguimiento.metricas || {};
   const respuestas = seguimiento.respuestas || [];
+  const snapshotAgrupado = useMemo(() => {
+    if (!seguimiento?.plantilla_snapshot) return null;
+    return agruparSnapshot(seguimiento.plantilla_snapshot);
+  }, [seguimiento]);
 
   return createPortal(
     <div
@@ -202,6 +206,45 @@ export default function SeguimientoModal({ seguimiento, paciente, onClose }) {
                 <p className="text-xs text-indigo-600 mt-2">
                   {seguimiento.plantilla_snapshot.preguntas?.length || 0} preguntas configuradas
                 </p>
+
+                {snapshotAgrupado && (
+                  <div className="mt-4 space-y-5">
+                    {snapshotAgrupado.porCategoria.map(({ cat, preguntas }) =>
+                      preguntas.length > 0 ? (
+                        <div key={cat.id} className="border border-indigo-100 rounded-lg bg-white">
+                          <div className="px-4 pt-4 pb-2 flex items-center gap-2 text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+                            <span className="inline-flex w-2 h-2 rounded-full bg-indigo-500"></span>
+                            {cat.nombre}
+                          </div>
+                          <div className="divide-y divide-indigo-100">
+                            {preguntas.map((item) => (
+                              <div key={item._uuid} className="px-4 py-3">
+                                {renderSnapshotPreguntaCard(item, cat.nombre)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null
+                    )}
+
+                    {snapshotAgrupado.sinCategoria.length > 0 && (
+                      <div className="border border-indigo-100 rounded-lg bg-white">
+                        {snapshotAgrupado.categorias.length > 0 && (
+                          <div className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            Sin categoría
+                          </div>
+                        )}
+                        <div className="divide-y divide-indigo-100">
+                          {snapshotAgrupado.sinCategoria.map((item) => (
+                            <div key={item._uuid} className="px-4 py-3">
+                              {renderSnapshotPreguntaCard(item)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -261,5 +304,228 @@ export default function SeguimientoModal({ seguimiento, paciente, onClose }) {
       `}</style>
     </div>,
     document.body
+  );
+}
+
+function normalizeSnapshotCategorias(rawCats) {
+  if (!Array.isArray(rawCats)) return [];
+
+  const vistos = new Set();
+  const normalizadas = [];
+
+  rawCats.forEach((cat, index) => {
+    let categoriaNormalizada = null;
+
+    if (typeof cat === "string") {
+      const id = String(cat).trim();
+      if (!id) return;
+      categoriaNormalizada = {
+        id,
+        nombre: cat,
+        orden: index,
+      };
+    } else if (cat && typeof cat === "object") {
+      const nombreCrudo =
+        cat.nombre ??
+        cat.label ??
+        cat.titulo ??
+        cat.name ??
+        cat.title ??
+        "";
+
+      const resolvedId =
+        cat.id ??
+        cat.temp_id ??
+        cat.key ??
+        nombreCrudo ??
+        `cat-${index}`;
+
+      const id = String(resolvedId).trim();
+      if (!id) return;
+
+      const nombre = String(nombreCrudo || id).trim() || id;
+
+      categoriaNormalizada = {
+        id,
+        nombre,
+        orden: cat.orden ?? index,
+      };
+    }
+
+    if (categoriaNormalizada && !vistos.has(categoriaNormalizada.id)) {
+      vistos.add(categoriaNormalizada.id);
+      normalizadas.push(categoriaNormalizada);
+    }
+  });
+
+  return normalizadas
+    .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+    .map((cat, idx) => ({ ...cat, orden: idx }));
+}
+
+function inferCategoriasDesdePreguntasSnapshot(preguntas = []) {
+  const map = new Map();
+
+  preguntas.forEach((p) => {
+    const rawCategoria = p?.categoria ?? p?.config?.categoria;
+    if (rawCategoria === null || rawCategoria === undefined || rawCategoria === "") return;
+
+    const id = String(rawCategoria).trim();
+    if (!id || map.has(id)) return;
+
+    const nombre =
+      p?.config?.categoria_nombre ??
+      p?.config?.categoriaNombre ??
+      p?.config?.categoria_label ??
+      p?.config?.categoriaLabel ??
+      id;
+
+    map.set(id, {
+      id,
+      nombre: String(nombre || id).trim() || id,
+      orden: map.size,
+    });
+  });
+
+  return Array.from(map.values());
+}
+
+function agruparSnapshot(snapshot) {
+  const categoriasIniciales = normalizeSnapshotCategorias(snapshot?.categorias || []);
+  let categorias = categoriasIniciales;
+
+  if (categorias.length === 0) {
+    const inferidas = normalizeSnapshotCategorias(
+      inferCategoriasDesdePreguntasSnapshot(snapshot?.preguntas || [])
+    );
+    if (inferidas.length > 0) {
+      categorias = inferidas;
+    }
+  }
+
+  const map = new Map();
+  categorias.forEach((cat) => map.set(cat.id, []));
+
+  const ordenadas = Array.isArray(snapshot?.preguntas)
+    ? [...snapshot.preguntas].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+    : [];
+
+  const sinCategoria = [];
+  let correlativo = 1;
+
+  ordenadas.forEach((p, index) => {
+    const rawCategoria = p?.categoria ?? p?.config?.categoria;
+    const catId = rawCategoria === null || rawCategoria === undefined || rawCategoria === ""
+      ? null
+      : String(rawCategoria).trim();
+
+    const item = {
+      ...p,
+      displayIndex: correlativo,
+      _uuid: `${p?.pregunta?.id ?? "preg"}-${correlativo}-${index}`,
+    };
+    correlativo += 1;
+
+    if (catId && map.has(catId)) {
+      map.get(catId).push(item);
+    } else {
+      sinCategoria.push(item);
+    }
+  });
+
+  const porCategoria = categorias.map((cat) => ({
+    cat,
+    preguntas: map.get(cat.id) || [],
+  }));
+
+  return {
+    categorias,
+    sinCategoria,
+    porCategoria,
+  };
+}
+
+function renderSnapshotPreguntaCard(item, categoriaNombre) {
+  const pregunta = item?.pregunta || {};
+  const rawTitulo =
+    pregunta.texto ??
+    item.texto ??
+    item.nombre ??
+    item.label ??
+    item.titulo ??
+    "";
+  const titulo = String(rawTitulo || "Pregunta").trim() || "Pregunta";
+  const tipo = pregunta.tipo ?? item.tipo ?? null;
+  const unidad = pregunta.unidad ?? item.unidad ?? null;
+  const codigo = pregunta.codigo ?? item.codigo ?? null;
+  const opciones = pregunta.opciones ?? item.opciones;
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-semibold">
+        {item.displayIndex ?? item.orden ?? ""}
+      </div>
+      <div className="flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="text-sm font-semibold text-gray-900 flex-1">
+            {titulo}
+          </h4>
+          {categoriaNombre && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-100 text-indigo-700">
+              {categoriaNombre}
+            </span>
+          )}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+          {tipo && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+              {tipo}
+            </span>
+          )}
+          {unidad && <span>Unidad: {unidad}</span>}
+          {codigo && <span className="text-gray-400">Código: {codigo}</span>}
+        </div>
+
+        {Array.isArray(opciones) && opciones.length > 0 && (
+          <div className="mt-2">
+            <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Opciones</p>
+            <div className="flex flex-wrap gap-1.5">
+              {opciones.map((opcion, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-blue-50 text-blue-700 border border-blue-200"
+                >
+                  {typeof opcion === "string" ? opcion : opcion.etiqueta || opcion.valor}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+          {item.requerido && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded bg-red-100 text-red-700 font-medium">
+              Requerida
+            </span>
+          )}
+          {item.visible === false && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+              Oculta
+            </span>
+          )}
+        </div>
+
+        {item.config && Object.keys(item.config).length > 0 && (
+          <details className="mt-2">
+            <summary className="text-[11px] text-gray-500 cursor-pointer hover:text-gray-700">
+              Ver configuración
+            </summary>
+            <pre className="mt-2 text-[11px] bg-gray-50 p-2 rounded border border-gray-100 overflow-auto">
+              {JSON.stringify(item.config, null, 2)}
+            </pre>
+          </details>
+        )}
+      </div>
+    </div>
   );
 }

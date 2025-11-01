@@ -192,9 +192,9 @@ export const preguntasApi = createApi({
                     : [{ type: 'Pregunta', id: 'LIST' }],
         }),
 
-        // Obtener pregunta por ID
+        // Obtener pregunta personalizada por ID
         getPregunta: builder.query({
-            query: (id) => `/preguntas/${id}/`,
+            query: (id) => `/preguntas/personalizadas/${id}/`,
             providesTags: (result, error, id) => [{ type: 'Pregunta', id }],
         }),
 
@@ -208,10 +208,10 @@ export const preguntasApi = createApi({
             invalidatesTags: [{ type: 'Pregunta', id: 'LIST' }],
         }),
 
-        // Actualizar pregunta
+        // Actualizar pregunta personalizada
         updatePregunta: builder.mutation({
             query: ({ id, ...body }) => ({
-                url: `/preguntas/${id}/`,
+                url: `/preguntas/personalizadas/${id}/`,
                 method: 'PATCH',
                 body,
             }),
@@ -221,10 +221,10 @@ export const preguntasApi = createApi({
             ],
         }),
 
-        // Eliminar pregunta
+        // Eliminar pregunta personalizada
         deletePregunta: builder.mutation({
             query: (id) => ({
-                url: `/preguntas/${id}/`,
+                url: `/preguntas/personalizadas/${id}/`,
                 method: 'DELETE',
             }),
             invalidatesTags: [{ type: 'Pregunta', id: 'LIST' }],

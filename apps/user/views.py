@@ -277,6 +277,9 @@ from .serializers import (
 
 class PreguntaPersonalizadaViewSet(mixins.CreateModelMixin,
                                      mixins.ListModelMixin,
+                                     mixins.RetrieveModelMixin,
+                                     mixins.UpdateModelMixin,
+                                     mixins.DestroyModelMixin,
                                      viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -573,7 +576,12 @@ class PlantillaConsultaViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("No puedes eliminar plantillas del sistema")
         
         nutri = getattr(self.request.user, 'nutricionista', None)
-        if instance.owner_id != nutri.id:
+        is_superuser = getattr(self.request.user, 'is_superuser', False)
+
+        if not nutri and not is_superuser:
+            raise PermissionDenied("Solo un nutricionista puede eliminar plantillas")
+
+        if nutri and instance.owner_id != nutri.id and not is_superuser:
             raise PermissionDenied("No puedes eliminar plantillas de otros nutricionistas")
         
         instance.delete()
