@@ -1,20 +1,41 @@
-import Error404 from './containers/errors/Error404'
-import Home from './containers/pages/Home'
-import store from './store';
-import { Provider } from 'react-redux';
-import { BrowserRouter as Router, Route, Routes } from  'react-router-dom'
+import { useEffect } from 'react';
+import { BrowserRouter as Router } from 'react-router-dom';
+import { Provider, useDispatch, useSelector } from 'react-redux';
+import store from './app/store';
+import AppRoutes from './Routes';
+import api from './api/client';
+import { fetchMe } from './features/auth/authSlice';
+
+function AppContent() {
+  const dispatch = useDispatch();
+  const { access, user } = useSelector(s => s.auth);
+
+  useEffect(() => {
+    // Pedir la cookie CSRF al backend al cargar la app
+    api.get('/api/user/csrf-cookie/');
+  }, []);
+
+  useEffect(() => {
+    // Si hay un token pero no hay usuario, cargar los datos del usuario
+    if (access && !user) {
+      dispatch(fetchMe());
+    }
+  }, [access, user, dispatch]);
+
+  return <AppRoutes />;
+}
 
 function App() {
   return (
     <Provider store={store}>
-    <Router>
-      <Routes>
-        <Route path='*' element={<Error404/>}/>
-        <Route path ='/' element={<Home/>}/>
-      </Routes>
-    </Router>
+      <Router>
+        <AppContent />
+      </Router>
     </Provider>
   );
 }
 
 export default App;
+
+
+
