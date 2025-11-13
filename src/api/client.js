@@ -22,11 +22,35 @@ const api = axios.create({
     });
 
     api.interceptors.request.use((config) => {
-    // 1. Adjuntar token de autenticación JWT
-    const access = localStorage.getItem("access");
-    if (access) config.headers.Authorization = `Bearer ${access}`;
+    // Asegurar que headers existe
+    if (!config.headers) {
+        config.headers = {};
+    }
 
-    // 2. Adjuntar token CSRF para métodos "inseguros"
+    // 1. Si es FormData, eliminar Content-Type COMPLETAMENTE antes de cualquier otra operación
+    // Esto es crítico: axios debe establecer automáticamente multipart/form-data con boundary
+    if (config.data instanceof FormData) {
+        // Eliminar Content-Type de todas las formas posibles
+        delete config.headers['Content-Type'];
+        delete config.headers['content-type'];
+        delete config.headers['Content-type'];
+        
+        // Deshabilitar transformRequest para FormData - dejar que el navegador lo maneje
+        config.transformRequest = [];
+    } else if (config.data && typeof config.data === 'object' && !(config.data instanceof FormData) && !Array.isArray(config.data) && !(config.data instanceof Blob) && !(config.data instanceof File)) {
+        // Para otros tipos de datos (objetos planos), establecer Content-Type como JSON solo si no está definido
+        if (!config.headers['Content-Type'] && !config.headers['content-type']) {
+            config.headers['Content-Type'] = 'application/json';
+        }
+    }
+
+    // 2. Adjuntar token de autenticación JWT
+    const access = localStorage.getItem("access");
+    if (access) {
+        config.headers.Authorization = `Bearer ${access}`;
+    }
+
+    // 3. Adjuntar token CSRF para métodos "inseguros"
     const isSafeMethod = /^(GET|HEAD|OPTIONS)$/.test(config.method.toUpperCase());
     if (!isSafeMethod) {
         const csrfToken = getCookie('csrftoken');

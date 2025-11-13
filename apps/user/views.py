@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.db import models as django_models
@@ -23,12 +24,16 @@ from .serializers import (
 #     EspecialidadSerializer,
 # )
 from rest_framework import permissions, status
-from .models import Pregunta, Consulta, TipoConsulta
+from .models import Pregunta, Consulta, TipoConsulta, PlanAlimentario, AsignacionPlanAlimentario
 from .serializers import (
     PreguntaSerializer,
     ConsultaInicialSerializer,
     ConsultaSeguimientoSerializer,
     ConsultaListItemSerializer,
+    PlanAlimentarioSerializer,
+    PlanAlimentarioListSerializer,
+    AsignacionPlanAlimentarioSerializer,
+    AsignacionPlanAlimentarioListSerializer,
 )
 
 from rest_framework.permissions import IsAuthenticated
@@ -759,4 +764,175 @@ class NutricionistaPublicDetailView(generics.RetrieveAPIView):
             id__in=settings_ids,
             user__is_active=True
         ).prefetch_related('especialidades')
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Planes Alimentarios
+# ──────────────────────────────────────────────────────────────────────
+
+class PlanAlimentarioViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar planes alimentarios.
+    
+    - list: Listar planes alimentarios del nutricionista autenticado
+    - retrieve: Detalle de un plan alimentario
+    - create: Crear nuevo plan alimentario (con archivo)
+    - update/partial_update: Actualizar plan alimentario
+    - destroy: Eliminar plan alimentario (solo propios)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def get_queryset(self):
+        """
+        Devuelve solo los planes alimentarios del nutricionista autenticado.
+        """
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        if not nutri:
+            return PlanAlimentario.objects.none()
+        
+        return PlanAlimentario.objects.filter(
+            nutricionista=nutri
+        ).select_related('nutricionista').order_by('-created_at')
+    
+    def get_serializer_class(self):
+        """Usar serializers diferentes según la acción"""
+        if self.action == 'list':
+            return PlanAlimentarioListSerializer
+        return PlanAlimentarioSerializer
+    
+    def get_serializer_context(self):
+        """Agregar request al contexto para que el serializer pueda generar URLs"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
+    def perform_create(self, serializer):
+        """El nutricionista ya se asigna en el serializer desde el contexto"""
+        serializer.save()
+    
+    def perform_update(self, serializer):
+        """Actualizar plan alimentario"""
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Solo permitir eliminar planes propios"""
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        is_superuser = getattr(self.request.user, 'is_superuser', False)
+        
+        if not nutri and not is_superuser:
+            raise PermissionDenied("Solo un nutricionista puede eliminar planes alimentarios")
+        
+        if nutri and instance.nutricionista_id != nutri.id and not is_superuser:
+            raise PermissionDenied("No puedes eliminar planes alimentarios de otros nutricionistas")
+        
+        instance.delete()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Asignaciones de Planes Alimentarios
+# ──────────────────────────────────────────────────────────────────────
+
+class AsignacionPlanAlimentarioViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar asignaciones de planes alimentarios a pacientes.
+    
+    - list: Listar asignaciones del nutricionista autenticado
+    - retrieve: Detalle de una asignación
+    - create: Asignar un plan a un paciente
+    - update/partial_update: Actualizar asignación (notas, etc.)
+    - destroy: Desasignar un plan de un paciente
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    # No usar MultiPartParser/FormParser aquí porque solo recibimos JSON (plan_id, paciente_id, notas)
+    # parser_classes = [MultiPartParser, FormParser]  # Removido - solo recibimos JSON
+    
+    def get_queryset(self):
+        """
+        Devuelve las asignaciones del nutricionista autenticado.
+        Puede filtrarse por paciente o plan.
+        """
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        if not nutri:
+            return AsignacionPlanAlimentario.objects.none()
+        
+        queryset = AsignacionPlanAlimentario.objects.filter(
+            nutricionista=nutri
+        ).select_related('plan', 'paciente', 'paciente__user', 'nutricionista')
+        
+        # Filtro por paciente
+        paciente_id = self.request.query_params.get('paciente_id')
+        if paciente_id:
+            queryset = queryset.filter(paciente_id=paciente_id)
+        
+        # Filtro por plan
+        plan_id = self.request.query_params.get('plan_id')
+        if plan_id:
+            queryset = queryset.filter(plan_id=plan_id)
+        
+        return queryset.order_by('-fecha_asignacion')
+    
+    def get_serializer_class(self):
+        """Usar serializers diferentes según la acción"""
+        if self.action == 'list':
+            return AsignacionPlanAlimentarioListSerializer
+        return AsignacionPlanAlimentarioSerializer
+    
+    def get_serializer_context(self):
+        """Agregar request al contexto para que el serializer pueda generar URLs"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
+    def perform_create(self, serializer):
+        """El nutricionista ya se asigna en el serializer desde el contexto"""
+        serializer.save()
+    
+    def perform_update(self, serializer):
+        """Actualizar asignación"""
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Solo permitir eliminar asignaciones propias"""
+        nutri = getattr(self.request.user, 'nutricionista', None)
+        is_superuser = getattr(self.request.user, 'is_superuser', False)
+        
+        if not nutri and not is_superuser:
+            raise PermissionDenied("Solo un nutricionista puede eliminar asignaciones")
+        
+        if nutri and instance.nutricionista_id != nutri.id and not is_superuser:
+            raise PermissionDenied("No puedes eliminar asignaciones de otros nutricionistas")
+        
+        instance.delete()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Vista para Pacientes - Ver sus planes asignados
+# ──────────────────────────────────────────────────────────────────────
+
+class PlanesPacienteListView(generics.ListAPIView):
+    """
+    GET /api/user/mis-planes/
+    Lista los planes alimentarios asignados al paciente autenticado.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = AsignacionPlanAlimentarioListSerializer
+    
+    def get_queryset(self):
+        """
+        Devuelve solo los planes asignados al paciente autenticado.
+        """
+        paciente = getattr(self.request.user, 'paciente', None)
+        if not paciente:
+            return AsignacionPlanAlimentario.objects.none()
+        
+        return AsignacionPlanAlimentario.objects.filter(
+            paciente=paciente
+        ).select_related('plan', 'paciente', 'nutricionista').order_by('-fecha_asignacion')
+    
+    def get_serializer_context(self):
+        """Agregar request al contexto para que el serializer pueda generar URLs"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 

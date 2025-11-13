@@ -584,3 +584,97 @@ class PlantillaPregunta(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Planes Alimentarios
+# ────────────────────────────────────────────────────────────────────────────────
+
+class PlanAlimentario(models.Model):
+    """
+    Plan alimentario subido por un nutricionista.
+    Puede ser cualquier formato de archivo (PDF, DOCX, XLSX, imágenes, etc.).
+    """
+    nutricionista = models.ForeignKey(
+        Nutricionista,
+        on_delete=models.CASCADE,
+        related_name='planes_alimentarios',
+        help_text="Nutricionista propietario del plan"
+    )
+    
+    titulo = models.CharField(
+        max_length=200,
+        help_text="Título del plan alimentario"
+    )
+    
+    descripcion = models.TextField(
+        blank=True,
+        help_text="Descripción opcional del plan"
+    )
+    
+    archivo = models.FileField(
+        upload_to='planes_alimentarios/',
+        help_text="Archivo del plan alimentario (PDF, DOCX, XLSX, imágenes, etc.)"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "plan alimentario"
+        verbose_name_plural = "planes alimentarios"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['nutricionista', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.titulo} - {self.nutricionista}"
+
+
+class AsignacionPlanAlimentario(models.Model):
+    """
+    Relación entre un PlanAlimentario y un Paciente.
+    Permite que un nutricionista asigne planes alimentarios a sus pacientes.
+    """
+    plan = models.ForeignKey(
+        PlanAlimentario,
+        on_delete=models.CASCADE,
+        related_name='asignaciones',
+        help_text="Plan alimentario asignado"
+    )
+    
+    paciente = models.ForeignKey(
+        Paciente,
+        on_delete=models.CASCADE,
+        related_name='planes_asignados',
+        help_text="Paciente al que se le asigna el plan"
+    )
+    
+    nutricionista = models.ForeignKey(
+        Nutricionista,
+        on_delete=models.CASCADE,
+        related_name='asignaciones_planes',
+        help_text="Nutricionista que realiza la asignación"
+    )
+    
+    notas = models.TextField(
+        blank=True,
+        help_text="Notas adicionales sobre la asignación (opcional)"
+    )
+    
+    fecha_asignacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "asignación de plan alimentario"
+        verbose_name_plural = "asignaciones de planes alimentarios"
+        ordering = ['-fecha_asignacion']
+        unique_together = [('plan', 'paciente')]  # Un plan solo puede estar asignado una vez al mismo paciente
+        indexes = [
+            models.Index(fields=['paciente', '-fecha_asignacion']),
+            models.Index(fields=['nutricionista', '-fecha_asignacion']),
+        ]
+    
+    def __str__(self):
+        return f"{self.plan.titulo} → {self.paciente.full_name}"

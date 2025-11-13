@@ -37,6 +37,7 @@ export default function SidebarNutri() {
 
         <Item to="/panel/nutri/preguntas">Banco de preguntas</Item>
         <Item to="/panel/nutri/plantillas">Plantillas</Item>
+        <Item to="/panel/nutri/planes-alimentarios">Planes alimentarios</Item>
 
         {/* Agenda */}
         <div>

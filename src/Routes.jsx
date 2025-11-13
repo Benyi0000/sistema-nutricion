@@ -52,6 +52,7 @@ import PlantillaFormPage from './containers/pages/nutricionista/PlantillaFormPag
 import PlantillaDetailPage from './containers/pages/nutricionista/PlantillaDetailPage';
 import PreguntasPage from './containers/pages/nutricionista/PreguntasPage';
 import PreguntaFormPage from './containers/pages/nutricionista/PreguntaFormPage';
+import PlanesAlimentariosPage from './containers/pages/nutricionista/PlanesAlimentariosPage';
 
 // --- Placeholders simples (si aún no hiciste estas páginas) ---
 const ConsultasIndex = () => <div className="text-gray-700 p-4">Consultas — elige "Inicial" o "Seguimiento"</div>;
@@ -103,6 +104,7 @@ export default function AppRoutes() {
                 <Route path="plantillas/crear" element={<PlantillaFormPage />} />
                 <Route path="plantillas/:id" element={<PlantillaDetailPage />} />
                 <Route path="plantillas/:id/editar" element={<PlantillaFormPage />} />
+                <Route path="planes-alimentarios" element={<PlanesAlimentariosPage />} />
                 <Route path="configuracion" element={<Configuracion />} />
                 {/* ¡NUEVAS Rutas Agenda Nutricionista! */}
                 <Route path="agenda/configuracion" element={<AgendaConfigPage />} />

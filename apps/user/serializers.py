@@ -13,6 +13,7 @@ from .models import (
     Pregunta, TipoPregunta,
     Paciente, AsignacionNutricionistaPaciente,
     Consulta, TipoConsulta,
+    PlanAlimentario, AsignacionPlanAlimentario,
 )
 from .utils import normalize_respuestas
 
@@ -971,3 +972,150 @@ class PlantillaConsultaCreateUpdateSerializer(serializers.ModelSerializer):
                 )
         
         return instance
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Planes Alimentarios
+# ────────────────────────────────────────────────────────────────────────────────
+
+class PlanAlimentarioSerializer(serializers.ModelSerializer):
+    """
+    Serializer para planes alimentarios.
+    Incluye URL del archivo para descarga.
+    """
+    archivo_url = serializers.SerializerMethodField()
+    nutricionista_nombre = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PlanAlimentario
+        fields = ['id', 'titulo', 'descripcion', 'archivo', 'archivo_url', 
+                  'nutricionista', 'nutricionista_nombre', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'nutricionista']
+    
+    def get_archivo_url(self, obj):
+        """Retorna la URL completa del archivo"""
+        if obj.archivo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.archivo.url)
+            return obj.archivo.url
+        return None
+    
+    def get_nutricionista_nombre(self, obj):
+        """Retorna el nombre completo del nutricionista"""
+        return obj.nutricionista.full_name if obj.nutricionista else None
+    
+    def create(self, validated_data):
+        """Asigna automáticamente el nutricionista desde el usuario autenticado"""
+        user = self.context['request'].user
+        if not hasattr(user, 'nutricionista'):
+            raise serializers.ValidationError("El usuario debe ser un nutricionista.")
+        validated_data['nutricionista'] = user.nutricionista
+        return super().create(validated_data)
+
+
+class PlanAlimentarioListSerializer(serializers.ModelSerializer):
+    """
+    Serializer simplificado para listar planes alimentarios.
+    """
+    archivo_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PlanAlimentario
+        fields = ['id', 'titulo', 'descripcion', 'archivo_url', 'created_at']
+        read_only_fields = fields
+    
+    def get_archivo_url(self, obj):
+        """Retorna la URL completa del archivo"""
+        if obj.archivo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.archivo.url)
+            return obj.archivo.url
+        return None
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Asignaciones de Planes Alimentarios
+# ────────────────────────────────────────────────────────────────────────────────
+
+class AsignacionPlanAlimentarioSerializer(serializers.ModelSerializer):
+    """
+    Serializer para asignaciones de planes alimentarios a pacientes.
+    """
+    plan_titulo = serializers.CharField(source='plan.titulo', read_only=True)
+    plan_archivo_url = serializers.SerializerMethodField()
+    paciente_nombre = serializers.SerializerMethodField()
+    paciente_dni = serializers.CharField(source='paciente.user.dni', read_only=True)
+    
+    class Meta:
+        model = AsignacionPlanAlimentario
+        fields = ['id', 'plan', 'plan_titulo', 'plan_archivo_url', 'paciente', 
+                  'paciente_nombre', 'paciente_dni', 'nutricionista', 'notas', 
+                  'fecha_asignacion', 'fecha_actualizacion']
+        read_only_fields = ['id', 'fecha_asignacion', 'fecha_actualizacion', 'nutricionista']
+    
+    def get_plan_archivo_url(self, obj):
+        """Retorna la URL del archivo del plan"""
+        if obj.plan and obj.plan.archivo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.plan.archivo.url)
+            return obj.plan.archivo.url
+        return None
+    
+    def get_paciente_nombre(self, obj):
+        """Retorna el nombre completo del paciente"""
+        return obj.paciente.full_name if obj.paciente else None
+    
+    def create(self, validated_data):
+        """Asigna automáticamente el nutricionista desde el usuario autenticado"""
+        user = self.context['request'].user
+        if not hasattr(user, 'nutricionista'):
+            raise serializers.ValidationError("El usuario debe ser un nutricionista.")
+        validated_data['nutricionista'] = user.nutricionista
+        
+        # Verificar que el plan pertenece al nutricionista
+        plan = validated_data.get('plan')
+        if plan.nutricionista_id != user.nutricionista.id:
+            raise serializers.ValidationError("No puedes asignar planes de otros nutricionistas.")
+        
+        # Verificar que el paciente está asignado al nutricionista
+        paciente = validated_data.get('paciente')
+        if not AsignacionNutricionistaPaciente.objects.filter(
+            nutricionista=user.nutricionista,
+            paciente=paciente,
+            activo=True
+        ).exists():
+            raise serializers.ValidationError("El paciente no está asignado a este nutricionista.")
+        
+        return super().create(validated_data)
+
+
+class AsignacionPlanAlimentarioListSerializer(serializers.ModelSerializer):
+    """
+    Serializer simplificado para listar asignaciones.
+    """
+    plan = serializers.IntegerField(source='plan.id', read_only=True)
+    plan_titulo = serializers.CharField(source='plan.titulo', read_only=True)
+    plan_archivo_url = serializers.SerializerMethodField()
+    paciente_nombre = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AsignacionPlanAlimentario
+        fields = ['id', 'plan', 'plan_titulo', 'plan_archivo_url', 'paciente_nombre', 
+                  'notas', 'fecha_asignacion']
+        read_only_fields = fields
+    
+    def get_plan_archivo_url(self, obj):
+        """Retorna la URL del archivo del plan"""
+        if obj.plan and obj.plan.archivo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.plan.archivo.url)
+            return obj.plan.archivo.url
+        return None
+    
+    def get_paciente_nombre(self, obj):
+        """Retorna el nombre completo del paciente"""
+        return obj.paciente.full_name if obj.paciente else None
